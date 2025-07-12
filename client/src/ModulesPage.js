@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
 import { keymap } from '@codemirror/view';
@@ -6,12 +6,21 @@ import { indentWithTab } from '@codemirror/commands';
 import './App.css';
 
 export default function ModulesPage({ modules, setModules, onBack }) {
-  const [selectedModule, setSelectedModule] = useState(0);
+  const [open, setOpen] = useState(() => modules.map(() => false));
+
+  useEffect(() => {
+    setOpen(prev => {
+      const diff = modules.length - prev.length;
+      if (diff > 0) return [...prev, ...Array(diff).fill(false)];
+      if (diff < 0) return prev.slice(0, modules.length);
+      return prev;
+    });
+  }, [modules]);
 
   const addModule = () => {
     const newName = `module${modules.length + 1}.jslt`;
     setModules([...modules, { name: newName, content: '{}' }]);
-    setSelectedModule(modules.length);
+    setOpen(prev => [...prev, false]);
   };
 
   const updateModule = (idx, name, content) => {
@@ -23,7 +32,7 @@ export default function ModulesPage({ modules, setModules, onBack }) {
   const deleteModule = idx => {
     const newMods = modules.filter((_, i) => i !== idx);
     setModules(newMods);
-    setSelectedModule(Math.max(0, selectedModule - 1));
+    setOpen(o => o.filter((_, i) => i !== idx));
   };
 
   const beautifyModule = idx => {
@@ -36,32 +45,30 @@ export default function ModulesPage({ modules, setModules, onBack }) {
 
   const handleModuleUpload = e => {
     const files = Array.from(e.target.files).filter(f => f.name.endsWith('.jslt'));
-    const baseIndex = modules.length;
     files.forEach(file => {
       const reader = new FileReader();
       reader.onload = () => {
         const content = reader.result;
         setModules(prev => [...prev, { name: file.name, content }]);
+        setOpen(prev => [...prev, false]);
       };
       reader.readAsText(file);
     });
-    if (files.length) setSelectedModule(baseIndex);
     e.target.value = '';
   };
 
   const handleFolderUpload = e => {
     const files = Array.from(e.target.files).filter(f => f.name.endsWith('.jslt'));
-    const baseIndex = modules.length;
     files.forEach(file => {
       const reader = new FileReader();
       reader.onload = () => {
         const content = reader.result;
         const name = file.webkitRelativePath || file.name;
         setModules(prev => [...prev, { name, content }]);
+        setOpen(prev => [...prev, false]);
       };
       reader.readAsText(file);
     });
-    if (files.length) setSelectedModule(baseIndex);
     e.target.value = '';
   };
 
@@ -77,25 +84,32 @@ export default function ModulesPage({ modules, setModules, onBack }) {
         </div>
       </div>
       <div className="modules">
-        <div className="moduleList">
-          {modules.map((m, i) => (
-            <div key={i} className={i === selectedModule ? 'moduleItem active' : 'moduleItem'}>
-              <input value={m.name} onChange={e => updateModule(i, e.target.value, m.content)} />
-              <button onClick={() => deleteModule(i)}>✕</button>
-              <button onClick={() => beautifyModule(i)}>Beautify</button>
-              <button onClick={() => setSelectedModule(i)}>Edit</button>
+        {modules.map((m, i) => (
+          <div key={i} className="moduleBlock">
+            <div className="moduleHeader">
+              <input
+                value={m.name}
+                onChange={e => updateModule(i, e.target.value, m.content)}
+              />
+              <div className="labelButtons">
+                <button className="btn" onClick={() => beautifyModule(i)}>Beautify</button>
+                <button className="btn" onClick={() => setOpen(o => o.map((v, j) => j === i ? !v : v))}>
+                  {open[i] ? 'Collapse' : 'Expand'}
+                </button>
+                <button className="btn" onClick={() => deleteModule(i)}>✕</button>
+              </div>
             </div>
-          ))}
-        </div>
-        {modules[selectedModule] && (
-          <div className="editor moduleEditor">
-            <CodeMirror
-              value={modules[selectedModule].content}
-              extensions={[javascript(), keymap.of([indentWithTab])]}
-              onChange={content => updateModule(selectedModule, modules[selectedModule].name, content)}
-            />
+            {open[i] && (
+              <div className="editor moduleEditor">
+                <CodeMirror
+                  value={m.content}
+                  extensions={[javascript(), keymap.of([indentWithTab])]}
+                  onChange={content => updateModule(i, m.name, content)}
+                />
+              </div>
+            )}
           </div>
-        )}
+        ))}
       </div>
     </div>
   );

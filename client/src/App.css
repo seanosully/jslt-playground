@@ -121,32 +121,29 @@
   margin-left: 8px;
 }
 
-/* Collapsible modules list/editor */
-.modulesSection {
-  display: flex;
-  height: 200px; /* collapsed height when hidden */
-  overflow: hidden;
-  transition: height 0.2s ease;
-}
-.modulesSection.expanded {
-  height: 300px; /* adjust to taste */
-}
-.modulesList {
-  width: 200px;
-  border-right: 1px solid #ddd;
-  overflow-y: auto;
-}
-.moduleItem {
-  padding: 4px;
-  display: flex;
-  align-items: center;
-}
-.moduleItem.active {
-  background: #eef;
-}
 .moduleEditor {
   flex: 1;
   margin-left: 8px;
+}
+
+.moduleBlock {
+  border: 1px solid #ddd;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.moduleHeader {
+  background: #f9f9f9;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.moduleHeader input {
+  flex: 1;
+  margin-right: 8px;
 }
 
 /* Main JSLT and Output panes sit below the modules section */
