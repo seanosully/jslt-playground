@@ -1,10 +1,37 @@
+/* Make the three panes sit in a row */
 .container {
   display: flex;
-  flex-direction: column;
-  height: 100vh;
-  position: relative;
-  padding-top: 40px; /* room for the modules header */
+  flex-direction: row;
+  gap: 16px;           /* space between panes */
+  height: 100vh;       /* full viewport height so scrollbars stay per-pane */
+  padding: 16px;       /* optional outer padding */
+  box-sizing: border-box;
 }
+
+/* Each pane should flexibly share available width */
+.paneContainer {
+  flex: 1 1 0;         /* grow + shrink equally */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;     /* contain internal scrolls */
+}
+
+/* For your modules pane you may already have nested flex; 
+   no change needed unless you want to tweak its internal layout */
+.modules {
+  display: flex;
+  flex-direction: row;
+}
+
+/* Ensure the output pane’s <pre> scrolls internally */
+.outputPane .output {
+  height: 100%;        /* fill the paneContainer */
+  overflow: auto;
+  background: #fafafa; /* or whatever you prefer */
+  padding: 16px;
+  box-sizing: border-box;
+}
+
 
 /* Layout the three panes side by side */
 .mainView {

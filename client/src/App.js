@@ -9,49 +9,56 @@ import { parseTree, findNodeAtOffset } from 'jsonc-parser';
 import './App.css';
 
 export default function App() {
-  // Shared state
-  const [inputJson, setInputJson] = useState(() =>
-    localStorage.getItem('inputJson') || '{\n  "data": { "fruit": { "cost": 12 } }\n}'
-  );
-  const [jslt, setJslt] = useState(() =>
-    localStorage.getItem('jslt') || '{\n  "price": .data.fruit.cost\n}'
-  );
+  // Load initial state from localStorage or use defaults
+  const [inputJson, setInputJson] = useState(() => {
+    return localStorage.getItem('inputJson') ||
+      '{\n  "data": { "fruit": { "cost": 12 } }\n}';
+  });
+  const [jslt, setJslt] = useState(() => {
+    return localStorage.getItem('jslt') ||
+      '{\n  "price": .data.fruit.cost\n}';
+  });
   const [modules, setModules] = useState(() => {
     const saved = localStorage.getItem('jsltModules');
     return saved ? JSON.parse(saved) : [];
   });
   const [selectedModule, setSelectedModule] = useState(0);
-  const [modulesCollapsed, setModulesCollapsed] = useState(false);
   const [output, setOutput] = useState('');
   const [error, setError] = useState(null);
+  const [collapsed, setCollapsed] = useState(false);
+  const [modulesCollapsed, setModulesCollapsed] = useState(false);
   const lastGoodRef = useRef('');
 
-  // Persist state
+  // Persist inputJson, jslt, and modules
   useEffect(() => { localStorage.setItem('inputJson', inputJson); }, [inputJson]);
   useEffect(() => { localStorage.setItem('jslt', jslt); }, [jslt]);
   useEffect(() => { localStorage.setItem('jsltModules', JSON.stringify(modules)); }, [modules]);
 
-  // Input JSON editor
+  // Initialize Input JSON editor
   const { view: inputView, setContainer: setInputContainer } = useCodeMirror({
     value: inputJson,
     extensions: [json(), keymap.of([indentWithTab])],
     onChange: setInputJson,
   });
 
-  // Transform logic
+  // Debounced transform + format output
   useEffect(() => {
-    const timer = setTimeout(async () => {
+    const id = setTimeout(async () => {
       try {
+        const payload = { inputJson, jslt, modules };
         const res = await fetch('/api/transform', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ inputJson, jslt, modules })
+          body: JSON.stringify(payload)
         });
         const text = await res.text();
-        const body = JSON.parse(text);
-        if (!res.ok) throw new Error(body.error || 'Unknown');
+        let body;
+        try { body = JSON.parse(text); } catch {
+          throw new Error('Invalid JSON response: ' + text);
+        }
+        if (!res.ok) throw new Error(body.error || 'Unknown error');
         let pretty = body.output;
-        try { pretty = JSON.stringify(JSON.parse(pretty), null, 2); } catch {}
+        try { pretty = JSON.stringify(JSON.parse(body.output), null, 2); } catch {}
         setOutput(pretty);
         lastGoodRef.current = pretty;
         setError(null);
@@ -60,41 +67,54 @@ export default function App() {
         setOutput(lastGoodRef.current);
       }
     }, 500);
-    return () => clearTimeout(timer);
+    return () => clearTimeout(id);
   }, [inputJson, jslt, modules]);
 
-  // Beautify
+  // Beautify functions
   const beautifyInput = () => { try { setInputJson(JSON.stringify(JSON.parse(inputJson), null, 2)); } catch {} };
   const beautifyJslt = () => { try { setJslt(JSON.stringify(JSON.parse(jslt), null, 2)); } catch {} };
+  const beautifyModule = idx => {
+    try {
+      const m = modules[idx];
+      const parsed = JSON.parse(m.content);
+      updateModule(idx, m.name, JSON.stringify(parsed, null, 2));
+    } catch {};
+  };
 
   // Module operations
   const addModule = () => {
-    const name = `module${modules.length + 1}.jslt`;
-    setModules([...modules, { name, content: '{}' }]);
+    const newName = `module${modules.length + 1}.jslt`;
+    setModules([...modules, { name: newName, content: '{}' }]);
     setSelectedModule(modules.length);
     setModulesCollapsed(false);
   };
-  const updateModule = (i, name, content) => {
-    const arr = [...modules]; arr[i] = { name, content }; setModules(arr);
+  const updateModule = (idx, name, content) => {
+    const newMods = modules.slice();
+    newMods[idx] = { name, content };
+    setModules(newMods);
   };
-  const deleteModule = i => {
-    const arr = modules.filter((_, idx) => idx !== i);
-    setModules(arr);
+  const deleteModule = idx => {
+    const newMods = modules.filter((_, i) => i !== idx);
+    setModules(newMods);
     setSelectedModule(Math.max(0, selectedModule - 1));
   };
-  const handleUpload = e => {
-    const f = e.target.files[0]; if (!f?.name.endsWith('.jslt')) return;
-    const r = new FileReader();
-    r.onload = () => {
-      setModules(prev => [...prev, { name: f.name, content: r.result }]);
+
+  // Upload .jslt file
+  const handleModuleUpload = e => {
+    const file = e.target.files[0];
+    if (!file || !file.name.endsWith('.jslt')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const content = reader.result;
+      setModules(prev => [...prev, { name: file.name, content }]);
       setSelectedModule(modules.length);
       setModulesCollapsed(false);
     };
-    r.readAsText(f);
+    reader.readAsText(file);
     e.target.value = '';
   };
 
-  // Tooltip
+  // JSON hover tooltip logic
   const [tooltip, setTooltip] = useState(null);
   const onMouseMove = e => {
     if (!inputView) return setTooltip(null);
@@ -110,61 +130,80 @@ export default function App() {
       if (cur.parent.type === 'property') segs.unshift(cur.parent.children[0].value);
       cur = cur.parent;
     }
-    setTooltip({ path: segs.length ? '.' + segs.join('.') : '', x: e.clientX, y: e.clientY });
+    const path = segs.length ? '.' + segs.join('.') : '';
+    setTooltip({ path, x: e.clientX, y: e.clientY });
   };
   const onMouseLeave = () => setTooltip(null);
+  const onContextMenu = e => {
+    e.preventDefault();
+    onMouseMove(e);
+    tooltip && navigator.clipboard.writeText(tooltip.path);
+  };
+  const onCopyTooltip = () => tooltip && navigator.clipboard.writeText(tooltip.path);
 
   return (
     <div className="container">
-      <div className="mainView">
-        {/* Column 1: Input JSON */}
-        <div className="column">
+      {!collapsed ? (
+        <div className="paneContainer">
           <div className="label">
             Input JSON
-            <button className="btn" onClick={beautifyInput}>Beautify</button>
+            <div className="labelButtons">
+              <button className="btn" onClick={beautifyInput}>Beautify</button>
+              <button className="collapseBtn" onClick={() => setCollapsed(true)}>⏴</button>
+            </div>
           </div>
-          <div className="editor" ref={setInputContainer} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} />
+          <div
+            className="editor"
+            ref={setInputContainer}
+            onMouseMove={onMouseMove}
+            onMouseLeave={onMouseLeave}
+            onContextMenu={onContextMenu}
+          />
         </div>
+      ) : (
+        <div className="collapseHandle" onClick={() => setCollapsed(false)}>▶ Input JSON</div>
+      )}
 
-        {/* Column 2: Modules + Main JSLT */}
-        <div className="column">
+      {!modulesCollapsed ? (
+        <div className="paneContainer">
           <div className="label">
             JSLT Modules & Template
             <div className="labelButtons">
               <button className="btn" onClick={addModule}>Add Module</button>
-              <input type="file" accept=".jslt" onChange={handleUpload} />
-              <button className="btn" onClick={()=>setModulesCollapsed(!modulesCollapsed)}>
-                {modulesCollapsed? 'Show Modules':'Hide Modules'}
-              </button>
+              <input
+                type="file"
+                accept=".jslt"
+                className="fileInput"
+                onChange={handleModuleUpload}
+              />
+              <button className="collapseBtn" onClick={() => setModulesCollapsed(true)}>⏴</button>
             </div>
           </div>
-          {!modulesCollapsed && (
-            <div className="modulesSection">
-              <div className="modulesList">
-                {modules.map((m,i)=>(
-                  <div key={i} className={i===selectedModule?'moduleItem active':'moduleItem'}>
-                    <input value={m.name} onChange={e=>updateModule(i,e.target.value,m.content)}/>
-                    <button onClick={()=>deleteModule(i)}>✕</button>
-                    <button onClick={()=>beautifyModule(i)}>Beautify</button>
-                    <button onClick={()=>setSelectedModule(i)}>Edit</button>
-                  </div>
-                ))}
-              </div>
-              {modules[selectedModule] && (
-                <div className="editor moduleEditor">
-                  <CodeMirror
-                    value={modules[selectedModule].content}
-                    extensions={[javascript(), keymap.of([indentWithTab])]} 
-                    onChange={c=>updateModule(selectedModule,modules[selectedModule].name,c)}
+          <div className="modules">
+            <div className="moduleList">
+              {modules.map((m, i) => (
+                <div key={i} className={i === selectedModule ? 'moduleItem active' : 'moduleItem'}>
+                  <input
+                    value={m.name}
+                    onChange={e => updateModule(i, e.target.value, m.content)}
                   />
+                  <button onClick={() => deleteModule(i)}>✕</button>
+                  <button onClick={() => beautifyModule(i)}>Beautify</button>
+                  <button onClick={() => setSelectedModule(i)}>Edit</button>
                 </div>
-              )}
+              ))}
             </div>
-          )}
-          <div className="label">
-            Main JSLT Template
-            <button className="btn" onClick={beautifyJslt}>Beautify</button>
+            {modules[selectedModule] && (
+              <div className="editor moduleEditor">
+                <CodeMirror
+                  value={modules[selectedModule].content}
+                  extensions={[javascript(), keymap.of([indentWithTab])]}
+                  onChange={content => updateModule(selectedModule, modules[selectedModule].name, content)}
+                />
+              </div>
+            )}
           </div>
+          <div className="label">Main JSLT Template</div>
           <div className="editor">
             <CodeMirror
               value={jslt}
@@ -173,17 +212,24 @@ export default function App() {
             />
           </div>
         </div>
+      ) : (
+        <div className="collapseHandle" onClick={() => setModulesCollapsed(false)}>▶ Modules</div>
+      )}
 
-        {/* Column 3: Output JSON */}
-        <div className="column outputPane">
-          <div className="label">Output JSON</div>
-          <pre className="output">{output}</pre>
-          {error && <div className="errorBox">Error: {error}</div>}
-        </div>
+      <div className="paneContainer outputPane">
+        <div className="label">Output JSON</div>
+        <pre className="output">{output}</pre>
+        {error && <div className="errorBox">Error: {error}</div>}
       </div>
 
       {tooltip && (
-        <div className="pathTooltip" style={{top:tooltip.y-28,left:tooltip.x+8}}>{tooltip.path}</div>
+        <div
+          className="pathTooltip"
+          style={{ top: tooltip.y - 28, left: tooltip.x + 8 }}
+          onClick={onCopyTooltip}
+        >
+          {tooltip.path}
+        </div>
       )}
     </div>
   );
