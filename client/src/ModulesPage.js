@@ -35,15 +35,33 @@ export default function ModulesPage({ modules, setModules, onBack }) {
   };
 
   const handleModuleUpload = e => {
-    const file = e.target.files[0];
-    if (!file || !file.name.endsWith('.jslt')) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const content = reader.result;
-      setModules(prev => [...prev, { name: file.name, content }]);
-      setSelectedModule(modules.length);
-    };
-    reader.readAsText(file);
+    const files = Array.from(e.target.files).filter(f => f.name.endsWith('.jslt'));
+    const baseIndex = modules.length;
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const content = reader.result;
+        setModules(prev => [...prev, { name: file.name, content }]);
+      };
+      reader.readAsText(file);
+    });
+    if (files.length) setSelectedModule(baseIndex);
+    e.target.value = '';
+  };
+
+  const handleFolderUpload = e => {
+    const files = Array.from(e.target.files).filter(f => f.name.endsWith('.jslt'));
+    const baseIndex = modules.length;
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const content = reader.result;
+        const name = file.webkitRelativePath || file.name;
+        setModules(prev => [...prev, { name, content }]);
+      };
+      reader.readAsText(file);
+    });
+    if (files.length) setSelectedModule(baseIndex);
     e.target.value = '';
   };
 
@@ -53,7 +71,8 @@ export default function ModulesPage({ modules, setModules, onBack }) {
         Modules
         <div className="labelButtons">
           <button className="btn" onClick={addModule}>Add Module</button>
-          <input type="file" accept=".jslt" className="fileInput" onChange={handleModuleUpload} />
+          <input type="file" accept=".jslt" multiple className="fileInput" onChange={handleModuleUpload} />
+          <input type="file" webkitdirectory="" directory="" multiple className="fileInput" onChange={handleFolderUpload} />
           <button className="btn" onClick={onBack}>Back</button>
         </div>
       </div>
