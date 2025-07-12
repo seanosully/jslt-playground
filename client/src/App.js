@@ -96,11 +96,19 @@ export default function App() {
     if (!node) return setTooltip(null);
     const segs = [];
     let cur = node;
-    while (cur.parent) {
-      if (cur.parent.type === 'property') segs.unshift(cur.parent.children[0].value);
+    while (cur && cur.parent) {
+      if (cur.parent.type === 'property') {
+        segs.unshift('.' + cur.parent.children[0].value);
+        cur = cur.parent.parent;
+        continue;
+      }
+      if (cur.parent.type === 'array') {
+        const idx = cur.parent.children.indexOf(cur);
+        segs.unshift(`[${idx}]`);
+      }
       cur = cur.parent;
     }
-    const path = segs.length ? '.' + segs.join('.') : '';
+    const path = segs.join('');
     setTooltip({ path, x: e.clientX, y: e.clientY });
   };
   const onMouseLeave = () => setTooltip(null);
