@@ -21,7 +21,14 @@ export default function App() {
   });
   const [modules, setModules] = useState(() => {
     const saved = localStorage.getItem('jsltModules');
-    return saved ? JSON.parse(saved) : [];
+    if (saved) {
+      try {
+        return JSON.parse(saved).map(m => m.type ? m : { ...m, type: 'file' });
+      } catch {
+        return [];
+      }
+    }
+    return [];
   });
   const [output, setOutput] = useState('');
   const [error, setError] = useState(null);
@@ -48,7 +55,7 @@ export default function App() {
   useEffect(() => {
     const id = setTimeout(async () => {
       try {
-        const payload = { inputJson, jslt, modules };
+        const payload = { inputJson, jslt, modules: modules.filter(m => (m.type || 'file') !== 'folder') };
         const res = await fetch('/api/transform', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
