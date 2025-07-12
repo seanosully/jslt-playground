@@ -7,6 +7,7 @@ import { keymap } from '@codemirror/view';
 import { indentWithTab } from '@codemirror/commands';
 import { parseTree, findNodeAtOffset } from 'jsonc-parser';
 import './App.css';
+import ModulesPage from './ModulesPage';
 
 export default function App() {
   // Load initial state from localStorage or use defaults
@@ -22,11 +23,13 @@ export default function App() {
     const saved = localStorage.getItem('jsltModules');
     return saved ? JSON.parse(saved) : [];
   });
-  const [selectedModule, setSelectedModule] = useState(0);
   const [output, setOutput] = useState('');
   const [error, setError] = useState(null);
-  const [collapsed, setCollapsed] = useState(false);
-  const [modulesCollapsed, setModulesCollapsed] = useState(false);
+  const [inputCollapsed, setInputCollapsed] = useState(false);
+  const [templateCollapsed, setTemplateCollapsed] = useState(false);
+  const [outputCollapsed, setOutputCollapsed] = useState(false);
+  const [fullScreen, setFullScreen] = useState(null);
+  const [view, setView] = useState('main');
   const lastGoodRef = useRef('');
 
   // Persist inputJson, jslt, and modules
@@ -73,46 +76,6 @@ export default function App() {
   // Beautify functions
   const beautifyInput = () => { try { setInputJson(JSON.stringify(JSON.parse(inputJson), null, 2)); } catch {} };
   const beautifyJslt = () => { try { setJslt(JSON.stringify(JSON.parse(jslt), null, 2)); } catch {} };
-  const beautifyModule = idx => {
-    try {
-      const m = modules[idx];
-      const parsed = JSON.parse(m.content);
-      updateModule(idx, m.name, JSON.stringify(parsed, null, 2));
-    } catch {};
-  };
-
-  // Module operations
-  const addModule = () => {
-    const newName = `module${modules.length + 1}.jslt`;
-    setModules([...modules, { name: newName, content: '{}' }]);
-    setSelectedModule(modules.length);
-    setModulesCollapsed(false);
-  };
-  const updateModule = (idx, name, content) => {
-    const newMods = modules.slice();
-    newMods[idx] = { name, content };
-    setModules(newMods);
-  };
-  const deleteModule = idx => {
-    const newMods = modules.filter((_, i) => i !== idx);
-    setModules(newMods);
-    setSelectedModule(Math.max(0, selectedModule - 1));
-  };
-
-  // Upload .jslt file
-  const handleModuleUpload = e => {
-    const file = e.target.files[0];
-    if (!file || !file.name.endsWith('.jslt')) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const content = reader.result;
-      setModules(prev => [...prev, { name: file.name, content }]);
-      setSelectedModule(modules.length);
-      setModulesCollapsed(false);
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
 
   // JSON hover tooltip logic
   const [tooltip, setTooltip] = useState(null);
@@ -141,96 +104,89 @@ export default function App() {
   };
   const onCopyTooltip = () => tooltip && navigator.clipboard.writeText(tooltip.path);
 
-  return (
-    <div className="container">
-      {!collapsed ? (
-        <div className="paneContainer">
-          <div className="label">
-            Input JSON
-            <div className="labelButtons">
-              <button className="btn" onClick={beautifyInput}>Beautify</button>
-              <button className="collapseBtn" onClick={() => setCollapsed(true)}>⏴</button>
-            </div>
-          </div>
-          <div
-            className="editor"
-            ref={setInputContainer}
-            onMouseMove={onMouseMove}
-            onMouseLeave={onMouseLeave}
-            onContextMenu={onContextMenu}
-          />
-        </div>
-      ) : (
-        <div className="collapseHandle" onClick={() => setCollapsed(false)}>▶ Input JSON</div>
-      )}
+  if (view === 'modules') {
+    return <ModulesPage modules={modules} setModules={setModules} onBack={() => setView('main')} />;
+  }
 
-      {!modulesCollapsed ? (
-        <div className="paneContainer">
-          <div className="label">
-            JSLT Modules & Template
-            <div className="labelButtons">
-              <button className="btn" onClick={addModule}>Add Module</button>
-              <input
-                type="file"
-                accept=".jslt"
-                className="fileInput"
-                onChange={handleModuleUpload}
-              />
-              <button className="collapseBtn" onClick={() => setModulesCollapsed(true)}>⏴</button>
-            </div>
-          </div>
-          <div className="modules">
-            <div className="moduleList">
-              {modules.map((m, i) => (
-                <div key={i} className={i === selectedModule ? 'moduleItem active' : 'moduleItem'}>
-                  <input
-                    value={m.name}
-                    onChange={e => updateModule(i, e.target.value, m.content)}
-                  />
-                  <button onClick={() => deleteModule(i)}>✕</button>
-                  <button onClick={() => beautifyModule(i)}>Beautify</button>
-                  <button onClick={() => setSelectedModule(i)}>Edit</button>
-                </div>
-              ))}
-            </div>
-            {modules[selectedModule] && (
-              <div className="editor moduleEditor">
-                <CodeMirror
-                  value={modules[selectedModule].content}
-                  extensions={[javascript(), keymap.of([indentWithTab])]}
-                  onChange={content => updateModule(selectedModule, modules[selectedModule].name, content)}
-                />
+  return (
+    <div className="root">
+      <div className="topBar">
+        <button className="btn" onClick={() => setView('modules')}>Modules</button>
+      </div>
+      <div className="container">
+        {!inputCollapsed && (!fullScreen || fullScreen === 'input') && (
+          <div className="paneContainer">
+            <div className="label">
+              Input JSON
+              <div className="labelButtons">
+                <button className="btn" onClick={beautifyInput}>Beautify</button>
+                <button className="btn" onClick={() => setFullScreen(fullScreen === 'input' ? null : 'input')}>{fullScreen === 'input' ? 'Exit' : 'Expand'}</button>
+                <button className="collapseBtn" onClick={() => setInputCollapsed(true)}>⏴</button>
               </div>
-            )}
-          </div>
-          <div className="label">Main JSLT Template</div>
-          <div className="editor">
-            <CodeMirror
-              value={jslt}
-              extensions={[javascript(), keymap.of([indentWithTab])]}
-              onChange={setJslt}
+            </div>
+            <div
+              className="editor"
+              ref={setInputContainer}
+              onMouseMove={onMouseMove}
+              onMouseLeave={onMouseLeave}
+              onContextMenu={onContextMenu}
             />
           </div>
-        </div>
-      ) : (
-        <div className="collapseHandle" onClick={() => setModulesCollapsed(false)}>▶ Modules</div>
-      )}
+        )}
+        {inputCollapsed && !fullScreen && (
+          <div className="collapseHandle" onClick={() => setInputCollapsed(false)}>▶ Input JSON</div>
+        )}
 
-      <div className="paneContainer outputPane">
-        <div className="label">Output JSON</div>
-        <pre className="output">{output}</pre>
-        {error && <div className="errorBox">Error: {error}</div>}
+        {!templateCollapsed && (!fullScreen || fullScreen === 'template') && (
+          <div className="paneContainer">
+            <div className="label">
+              JSLT Template
+              <div className="labelButtons">
+                <button className="btn" onClick={beautifyJslt}>Beautify</button>
+                <button className="btn" onClick={() => setFullScreen(fullScreen === 'template' ? null : 'template')}>{fullScreen === 'template' ? 'Exit' : 'Expand'}</button>
+                <button className="collapseBtn" onClick={() => setTemplateCollapsed(true)}>⏴</button>
+              </div>
+            </div>
+            <div className="editor">
+              <CodeMirror
+                value={jslt}
+                extensions={[javascript(), keymap.of([indentWithTab])]}
+                onChange={setJslt}
+              />
+            </div>
+          </div>
+        )}
+        {templateCollapsed && !fullScreen && (
+          <div className="collapseHandle" onClick={() => setTemplateCollapsed(false)}>▶ Template</div>
+        )}
+
+        {!outputCollapsed && (!fullScreen || fullScreen === 'output') && (
+          <div className="paneContainer outputPane">
+            <div className="label">
+              Output JSON
+              <div className="labelButtons">
+                <button className="btn" onClick={() => setFullScreen(fullScreen === 'output' ? null : 'output')}>{fullScreen === 'output' ? 'Exit' : 'Expand'}</button>
+                <button className="collapseBtn" onClick={() => setOutputCollapsed(true)}>⏴</button>
+              </div>
+            </div>
+            <pre className="output">{output}</pre>
+            {error && <div className="errorBox">Error: {error}</div>}
+          </div>
+        )}
+        {outputCollapsed && !fullScreen && (
+          <div className="collapseHandle" onClick={() => setOutputCollapsed(false)}>▶ Output</div>
+        )}
+
+        {tooltip && !fullScreen && (
+          <div
+            className="pathTooltip"
+            style={{ top: tooltip.y - 28, left: tooltip.x + 8 }}
+            onClick={onCopyTooltip}
+          >
+            {tooltip.path}
+          </div>
+        )}
       </div>
-
-      {tooltip && (
-        <div
-          className="pathTooltip"
-          style={{ top: tooltip.y - 28, left: tooltip.x + 8 }}
-          onClick={onCopyTooltip}
-        >
-          {tooltip.path}
-        </div>
-      )}
     </div>
   );
 }
