@@ -1,19 +1,35 @@
 /* Make the three panes sit in a row */
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.topBar {
+  background: #282c34;
+  color: white;
+  padding: 8px 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .container {
+  flex: 1;
   display: flex;
   flex-direction: row;
-  gap: 16px;           /* space between panes */
-  height: 100vh;       /* full viewport height so scrollbars stay per-pane */
-  padding: 16px;       /* optional outer padding */
+  gap: 16px;
+  padding: 16px;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 /* Each pane should flexibly share available width */
 .paneContainer {
-  flex: 1 1 0;         /* grow + shrink equally */
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;     /* contain internal scrolls */
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* For your modules pane you may already have nested flex; 
@@ -63,6 +79,26 @@
   border-bottom: 1px solid #ddd;
 }
 
+.labelButtons {
+  display: flex;
+  align-items: center;
+}
+
+.collapseBtn {
+  margin-left: 8px;
+}
+
+.collapseHandle {
+  writing-mode: vertical-rl;
+  cursor: pointer;
+  padding: 4px;
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .btn {
   margin-left: 8px;
 }
@@ -85,38 +121,35 @@
   margin-left: 8px;
 }
 
-/* Collapsible modules list/editor */
-.modulesSection {
-  display: flex;
-  height: 200px; /* collapsed height when hidden */
-  overflow: hidden;
-  transition: height 0.2s ease;
-}
-.modulesSection.expanded {
-  height: 300px; /* adjust to taste */
-}
-.modulesList {
-  width: 200px;
-  border-right: 1px solid #ddd;
-  overflow-y: auto;
-}
-.moduleItem {
-  padding: 4px;
-  display: flex;
-  align-items: center;
-}
-.moduleItem.active {
-  background: #eef;
-}
 .moduleEditor {
   flex: 1;
   margin-left: 8px;
 }
 
+.moduleBlock {
+  border: 1px solid #ddd;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.moduleHeader {
+  background: #f9f9f9;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.moduleHeader input {
+  flex: 1;
+  margin-right: 8px;
+}
+
 /* Main JSLT and Output panes sit below the modules section */
 .editor {
   flex: 1;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .outputPane .output {
