@@ -9,8 +9,10 @@
 /* Layout the three panes side by side */
 .mainView {
   flex: 1;
-  display: flex;
+  display: grid;
   width: 100%;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
 }
 
 .column {
