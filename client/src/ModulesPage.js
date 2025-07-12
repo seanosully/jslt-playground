@@ -92,6 +92,20 @@ export default function ModulesPage({ modules, setModules, onBack }) {
     }
   };
 
+  const removeEntry = (path, type) => {
+    const msg = type === 'folder'
+      ? `Delete folder ${path} and all contents?`
+      : `Delete file ${path}?`;
+    if (!window.confirm(msg)) return;
+    if (type === 'folder') {
+      setModules(modules.filter(m => !m.name.startsWith(path)));
+      if (selected && selected.startsWith(path)) setSelected(null);
+    } else {
+      setModules(modules.filter(m => m.name !== path));
+      if (selected === path) setSelected(null);
+    }
+  };
+
   const findModule = path => modules.find(m => m.name === path && (m.type || 'file') !== 'folder');
 
   const renderNode = node => {
@@ -99,12 +113,20 @@ export default function ModulesPage({ modules, setModules, onBack }) {
       const isOpen = openFolders[node.path];
       return (
         <div key={node.path}>
-          <div className="treeItem folder" onClick={() => toggleFolder(node.path)}>
-            {isOpen ? '📂' : '📁'} {node.name}
+          <div className="treeItemRow">
+            <div className="treeItem folder" onClick={() => toggleFolder(node.path)}>
+              {isOpen ? '📂' : '📁'} {node.name}
+            </div>
+            <button
+              className="deleteBtn"
+              onClick={e => { e.stopPropagation(); removeEntry(node.path, 'folder'); }}
+            >✕</button>
           </div>
           {isOpen && (
             <div className="treeChildren">
-              {Object.values(node.children).sort((a,b) => a.name.localeCompare(b.name)).map(renderNode)}
+              {Object.values(node.children)
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map(renderNode)}
             </div>
           )}
         </div>
@@ -113,10 +135,18 @@ export default function ModulesPage({ modules, setModules, onBack }) {
     return (
       <div
         key={node.path}
-        className={`treeItem file${selected === node.path ? ' selected' : ''}`}
-        onClick={() => setSelected(node.path)}
+        className={`treeItemRow file${selected === node.path ? ' selected' : ''}`}
       >
-        {node.name}
+        <div
+          className={`treeItem file${selected === node.path ? ' selected' : ''}`}
+          onClick={() => setSelected(node.path)}
+        >
+          {node.name}
+        </div>
+        <button
+          className="deleteBtn"
+          onClick={e => { e.stopPropagation(); removeEntry(node.path, 'file'); }}
+        >✕</button>
       </div>
     );
   };
@@ -124,32 +154,46 @@ export default function ModulesPage({ modules, setModules, onBack }) {
   const selectedModule = selected ? findModule(selected) : null;
 
   return (
-    <div className="modulesLayout">
-      <div className="fileTree">
-        <div className="label">
-          Files
-          <div className="labelButtons">
-            <button className="btn" onClick={addFile}>New File</button>
-            <button className="btn" onClick={addFolder}>New Folder</button>
-            <input type="file" accept=".jslt" multiple className="fileInput" onChange={handleModuleUpload} />
-            <input type="file" webkitdirectory="" directory="" multiple className="fileInput" onChange={handleFolderUpload} />
-            <button className="btn" onClick={onBack}>Back</button>
+    <div className="modulesPage">
+      <div className="modulesTopBar">
+        <button className="btn" onClick={onBack}>Back</button>
+      </div>
+      <div className="modulesLayout">
+        <div className="fileTree">
+          <div className="label">
+            Files
+            <div className="labelButtons moduleControls">
+              <div className="buttonRow">
+                <button className="btn" onClick={addFile}>New File</button>
+                <button className="btn" onClick={addFolder}>New Folder</button>
+              </div>
+              <div className="buttonRow">
+                <label className="btn fileUpload">
+                  Upload File
+                  <input type="file" accept=".jslt" multiple className="fileInput" onChange={handleModuleUpload} />
+                </label>
+                <label className="btn fileUpload">
+                  Upload Folder
+                  <input type="file" webkitdirectory="" directory="" multiple className="fileInput" onChange={handleFolderUpload} />
+                </label>
+              </div>
+            </div>
+          </div>
+          <div className="treeScroll">
+            {Object.values(tree.children).sort((a,b)=>a.name.localeCompare(b.name)).map(renderNode)}
           </div>
         </div>
-        <div className="treeScroll">
-          {Object.values(tree.children).sort((a,b)=>a.name.localeCompare(b.name)).map(renderNode)}
+        <div className="editorPane">
+          {selectedModule ? (
+            <CodeMirror
+              value={selectedModule.content}
+              extensions={[javascript(), keymap.of([indentWithTab])]}
+              onChange={value => updateContent(selectedModule.name, value)}
+            />
+          ) : (
+            <div className="noSelection">Select a file</div>
+          )}
         </div>
-      </div>
-      <div className="editorPane">
-        {selectedModule ? (
-          <CodeMirror
-            value={selectedModule.content}
-            extensions={[javascript(), keymap.of([indentWithTab])]}
-            onChange={value => updateContent(selectedModule.name, value)}
-          />
-        ) : (
-          <div className="noSelection">Select a file</div>
-        )}
       </div>
     </div>
   );
