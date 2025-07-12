@@ -21,7 +21,14 @@ export default function App() {
   });
   const [modules, setModules] = useState(() => {
     const saved = localStorage.getItem('jsltModules');
-    return saved ? JSON.parse(saved) : [];
+    if (saved) {
+      try {
+        return JSON.parse(saved).map(m => m.type ? m : { ...m, type: 'file' });
+      } catch {
+        return [];
+      }
+    }
+    return [];
   });
   const [output, setOutput] = useState('');
   const [error, setError] = useState(null);
@@ -48,7 +55,7 @@ export default function App() {
   useEffect(() => {
     const id = setTimeout(async () => {
       try {
-        const payload = { inputJson, jslt, modules };
+        const payload = { inputJson, jslt, modules: modules.filter(m => (m.type || 'file') !== 'folder') };
         const res = await fetch('/api/transform', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -89,11 +96,19 @@ export default function App() {
     if (!node) return setTooltip(null);
     const segs = [];
     let cur = node;
-    while (cur.parent) {
-      if (cur.parent.type === 'property') segs.unshift(cur.parent.children[0].value);
+    while (cur && cur.parent) {
+      if (cur.parent.type === 'property') {
+        segs.unshift('.' + cur.parent.children[0].value);
+        cur = cur.parent.parent;
+        continue;
+      }
+      if (cur.parent.type === 'array') {
+        const idx = cur.parent.children.indexOf(cur);
+        segs.unshift(`[${idx}]`);
+      }
       cur = cur.parent;
     }
-    const path = segs.length ? '.' + segs.join('.') : '';
+    const path = segs.join('');
     setTooltip({ path, x: e.clientX, y: e.clientY });
   };
   const onMouseLeave = () => setTooltip(null);

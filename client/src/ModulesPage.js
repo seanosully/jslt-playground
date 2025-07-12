@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
 import { keymap } from '@codemirror/view';
@@ -6,41 +6,51 @@ import { indentWithTab } from '@codemirror/commands';
 import './App.css';
 
 export default function ModulesPage({ modules, setModules, onBack }) {
-  const [open, setOpen] = useState(() => modules.map(() => false));
+  const [selected, setSelected] = useState(null);
+  const [openFolders, setOpenFolders] = useState({});
 
-  useEffect(() => {
-    setOpen(prev => {
-      const diff = modules.length - prev.length;
-      if (diff > 0) return [...prev, ...Array(diff).fill(false)];
-      if (diff < 0) return prev.slice(0, modules.length);
-      return prev;
+  const buildTree = () => {
+    const root = { children: {} };
+    modules.forEach(m => {
+      const type = m.type || 'file';
+      const parts = m.name.split('/').filter(p => p);
+      let cur = root;
+      parts.forEach((part, idx) => {
+        cur.children[part] = cur.children[part] || {
+          name: part,
+          path: parts.slice(0, idx + 1).join('/') + (idx === parts.length - 1 && type === 'folder' ? '/' : ''),
+          type: idx === parts.length - 1 ? type : 'folder',
+          children: {}
+        };
+        cur = cur.children[part];
+      });
+      if (type === 'file') {
+        cur.module = m;
+      }
     });
-  }, [modules]);
-
-  const addModule = () => {
-    const newName = `module${modules.length + 1}.jslt`;
-    setModules([...modules, { name: newName, content: '{}' }]);
-    setOpen(prev => [...prev, false]);
+    return root;
   };
 
-  const updateModule = (idx, name, content) => {
-    const newMods = modules.slice();
-    newMods[idx] = { name, content };
-    setModules(newMods);
+  const tree = buildTree();
+
+  const toggleFolder = path => {
+    setOpenFolders(prev => ({ ...prev, [path]: !prev[path] }));
   };
 
-  const deleteModule = idx => {
-    const newMods = modules.filter((_, i) => i !== idx);
-    setModules(newMods);
-    setOpen(o => o.filter((_, i) => i !== idx));
+  const addFile = () => {
+    const name = prompt('New file path');
+    if (!name) return;
+    const fileName = name.endsWith('.jslt') ? name : name + '.jslt';
+    setModules([...modules, { type: 'file', name: fileName, content: '{}' }]);
+    setSelected(fileName);
   };
 
-  const beautifyModule = idx => {
-    try {
-      const m = modules[idx];
-      const parsed = JSON.parse(m.content);
-      updateModule(idx, m.name, JSON.stringify(parsed, null, 2));
-    } catch {}
+  const addFolder = () => {
+    const name = prompt('New folder path');
+    if (!name) return;
+    const path = name.endsWith('/') ? name : name + '/';
+    setModules([...modules, { type: 'folder', name: path }]);
+    setOpenFolders(prev => ({ ...prev, [path]: true }));
   };
 
   const handleModuleUpload = e => {
@@ -49,8 +59,9 @@ export default function ModulesPage({ modules, setModules, onBack }) {
       const reader = new FileReader();
       reader.onload = () => {
         const content = reader.result;
-        setModules(prev => [...prev, { name: file.name, content }]);
-        setOpen(prev => [...prev, false]);
+        const name = file.name;
+        setModules(prev => [...prev, { type: 'file', name, content }]);
+        setSelected(name);
       };
       reader.readAsText(file);
     });
@@ -64,52 +75,125 @@ export default function ModulesPage({ modules, setModules, onBack }) {
       reader.onload = () => {
         const content = reader.result;
         const name = file.webkitRelativePath || file.name;
-        setModules(prev => [...prev, { name, content }]);
-        setOpen(prev => [...prev, false]);
+        setModules(prev => [...prev, { type: 'file', name, content }]);
+        setSelected(name);
       };
       reader.readAsText(file);
     });
     e.target.value = '';
   };
 
-  return (
-    <div className="container column">
-      <div className="label">
-        Modules
-        <div className="labelButtons">
-          <button className="btn" onClick={addModule}>Add Module</button>
-          <input type="file" accept=".jslt" multiple className="fileInput" onChange={handleModuleUpload} />
-          <input type="file" webkitdirectory="" directory="" multiple className="fileInput" onChange={handleFolderUpload} />
-          <button className="btn" onClick={onBack}>Back</button>
+  const updateContent = (path, content) => {
+    const idx = modules.findIndex(m => m.name === path && (m.type || 'file') !== 'folder');
+    if (idx >= 0) {
+      const newMods = modules.slice();
+      newMods[idx] = { ...newMods[idx], content };
+      setModules(newMods);
+    }
+  };
+
+  const removeEntry = (path, type) => {
+    const msg = type === 'folder'
+      ? `Delete folder ${path} and all contents?`
+      : `Delete file ${path}?`;
+    if (!window.confirm(msg)) return;
+    if (type === 'folder') {
+      setModules(modules.filter(m => !m.name.startsWith(path)));
+      if (selected && selected.startsWith(path)) setSelected(null);
+    } else {
+      setModules(modules.filter(m => m.name !== path));
+      if (selected === path) setSelected(null);
+    }
+  };
+
+  const findModule = path => modules.find(m => m.name === path && (m.type || 'file') !== 'folder');
+
+  const renderNode = node => {
+    if (node.type === 'folder') {
+      const isOpen = openFolders[node.path];
+      return (
+        <div key={node.path}>
+          <div className="treeItemRow">
+            <div className="treeItem folder" onClick={() => toggleFolder(node.path)}>
+              {isOpen ? '📂' : '📁'} {node.name}
+            </div>
+            <button
+              className="deleteBtn"
+              onClick={e => { e.stopPropagation(); removeEntry(node.path, 'folder'); }}
+            >✕</button>
+          </div>
+          {isOpen && (
+            <div className="treeChildren">
+              {Object.values(node.children)
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map(renderNode)}
+            </div>
+          )}
         </div>
+      );
+    }
+    return (
+      <div
+        key={node.path}
+        className={`treeItemRow file${selected === node.path ? ' selected' : ''}`}
+      >
+        <div
+          className={`treeItem file${selected === node.path ? ' selected' : ''}`}
+          onClick={() => setSelected(node.path)}
+        >
+          {node.name}
+        </div>
+        <button
+          className="deleteBtn"
+          onClick={e => { e.stopPropagation(); removeEntry(node.path, 'file'); }}
+        >✕</button>
       </div>
-      <div className="modules">
-        {modules.map((m, i) => (
-          <div key={i} className="moduleBlock">
-            <div className="moduleHeader">
-              <input
-                value={m.name}
-                onChange={e => updateModule(i, e.target.value, m.content)}
-              />
-              <div className="labelButtons">
-                <button className="btn" onClick={() => beautifyModule(i)}>Beautify</button>
-                <button className="btn" onClick={() => setOpen(o => o.map((v, j) => j === i ? !v : v))}>
-                  {open[i] ? 'Collapse' : 'Expand'}
-                </button>
-                <button className="btn" onClick={() => deleteModule(i)}>✕</button>
+    );
+  };
+
+  const selectedModule = selected ? findModule(selected) : null;
+
+  return (
+    <div className="modulesPage">
+      <div className="modulesTopBar">
+        <button className="btn" onClick={onBack}>Back</button>
+      </div>
+      <div className="modulesLayout">
+        <div className="fileTree">
+          <div className="label">
+            Files
+            <div className="labelButtons moduleControls">
+              <div className="buttonRow">
+                <button className="btn" onClick={addFile}>New File</button>
+                <button className="btn" onClick={addFolder}>New Folder</button>
+              </div>
+              <div className="buttonRow">
+                <label className="btn fileUpload">
+                  Upload File
+                  <input type="file" accept=".jslt" multiple className="fileInput" onChange={handleModuleUpload} />
+                </label>
+                <label className="btn fileUpload">
+                  Upload Folder
+                  <input type="file" webkitdirectory="" directory="" multiple className="fileInput" onChange={handleFolderUpload} />
+                </label>
               </div>
             </div>
-            {open[i] && (
-              <div className="editor moduleEditor">
-                <CodeMirror
-                  value={m.content}
-                  extensions={[javascript(), keymap.of([indentWithTab])]}
-                  onChange={content => updateModule(i, m.name, content)}
-                />
-              </div>
-            )}
           </div>
-        ))}
+          <div className="treeScroll">
+            {Object.values(tree.children).sort((a,b)=>a.name.localeCompare(b.name)).map(renderNode)}
+          </div>
+        </div>
+        <div className="editorPane">
+          {selectedModule ? (
+            <CodeMirror
+              value={selectedModule.content}
+              extensions={[javascript(), keymap.of([indentWithTab])]}
+              onChange={value => updateContent(selectedModule.name, value)}
+            />
+          ) : (
+            <div className="noSelection">Select a file</div>
+          )}
+        </div>
       </div>
     </div>
   );

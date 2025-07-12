@@ -82,6 +82,13 @@
 .labelButtons {
   display: flex;
   align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.moduleControls {
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .collapseBtn {
@@ -118,7 +125,11 @@
 }
 
 .fileInput {
-  margin-left: 8px;
+  display: none;
+}
+
+.fileUpload {
+  position: relative;
 }
 
 .moduleEditor {
@@ -165,6 +176,10 @@
   background: #ffe6e6;
   color: #b30000;
   border-top: 1px solid #b30000;
+  resize: vertical;
+  overflow: auto;
+  min-height: 40px;
+  max-height: 200px;
 }
 
 .pathTooltip {
@@ -177,4 +192,81 @@
   pointer-events: none;
   user-select: none;
   z-index: 20;
+}
+
+/* Modules page layout */
+.modulesLayout {
+  display: flex;
+  height: 100%;
+}
+
+.modulesPage {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.modulesTopBar {
+  background: #282c34;
+  color: white;
+  padding: 8px 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.fileTree {
+  width: 220px;
+  border-right: 1px solid #ddd;
+  display: flex;
+  flex-direction: column;
+}
+
+.buttonRow {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.treeItemRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.deleteBtn {
+  background: none;
+  border: none;
+  color: #900;
+  cursor: pointer;
+  margin-left: 4px;
+}
+
+.treeScroll {
+  flex: 1;
+  overflow: auto;
+  padding: 8px;
+}
+
+.treeItem {
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.treeItem.selected {
+  background: #e0e0e0;
+}
+
+.treeChildren {
+  padding-left: 16px;
+}
+
+.editorPane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+}
+
+.noSelection {
+  padding: 8px;
 }
