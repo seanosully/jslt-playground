@@ -6,6 +6,20 @@
   padding-top: 40px; /* room for the modules header */
 }
 
+/* Layout the three panes side by side */
+.mainView {
+  flex: 1;
+  display: flex;
+}
+
+.column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin: 4px;
+  border: 1px solid #ddd;
+}
+
 /* Nav button removed; we’ll render modules header above main JSLT */
 
 .paneContainer {
