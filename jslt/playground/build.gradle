@@ -1,0 +1,21 @@
+
+plugins {
+  id 'com.github.johnrengelman.shadow' version '7.1.2'
+}
+
+apply plugin: 'java'
+
+repositories {
+  mavenLocal()
+  mavenCentral()
+}
+
+dependencies {
+  implementation project(':core')
+  implementation 'org.eclipse.jetty:jetty-server:9.4.57.v20241219'
+  implementation 'com.fasterxml.jackson.core:jackson-databind:2.13.2'
+}
+
+group 'com.schibsted.spt.data'
+version '0.0.1'
+project.description 'JSLT demo playground implementation'

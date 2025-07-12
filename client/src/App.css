@@ -1,20 +1,58 @@
+/* Make the three panes sit in a row */
 .container {
   display: flex;
+  flex-direction: row;
+  gap: 16px;           /* space between panes */
+  height: 100vh;       /* full viewport height so scrollbars stay per-pane */
+  padding: 16px;       /* optional outer padding */
+  box-sizing: border-box;
+}
+
+/* Each pane should flexibly share available width */
+.paneContainer {
+  flex: 1 1 0;         /* grow + shrink equally */
+  display: flex;
   flex-direction: column;
-  height: 100vh;
-  position: relative;
-  padding-top: 40px; /* room for the modules header */
+  overflow: hidden;     /* contain internal scrolls */
+}
+
+/* For your modules pane you may already have nested flex; 
+   no change needed unless you want to tweak its internal layout */
+.modules {
+  display: flex;
+  flex-direction: row;
+}
+
+/* Ensure the output pane’s <pre> scrolls internally */
+.outputPane .output {
+  height: 100%;        /* fill the paneContainer */
+  overflow: auto;
+  background: #fafafa; /* or whatever you prefer */
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+
+/* Layout the three panes side by side */
+.mainView {
+  flex: 1;
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  margin: 4px;
+  border: 1px solid #ddd;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* Nav button removed; we’ll render modules header above main JSLT */
-
-.paneContainer {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  margin: 4px;
-  border: 1px solid #ddd;
-}
 
 .label {
   background: #f9f9f9;
