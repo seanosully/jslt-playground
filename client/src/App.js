@@ -36,8 +36,8 @@ export default function App() {
       name: 'Default',
       inputs: [{ name: 'input.json', content: '{\n  "data": { "fruit": { "cost": 12 } }\n}' }],
       selectedInput: 'input.json',
-      modules: [{ type: 'file', name: 'main.jslt', content: '{\n  "price": .data.fruit.cost\n}' }],
-      selectedTemplate: 'main.jslt'
+      modules: [{ type: 'file', name: 'default.jslt', content: '{\n  "price": .data.fruit.cost\n}' }],
+      selectedTemplate: 'default.jslt'
     }];
   };
 
@@ -61,6 +61,10 @@ export default function App() {
   const [fullScreen, setFullScreen] = useState(null);
   const [view, setView] = useState('main');
   const lastGoodRef = useRef('');
+  const folderInputRef = useRef(null);
+  const pendingImportName = useRef('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
 
   // Load project data when active project changes
   useEffect(() => {
@@ -244,6 +248,68 @@ export default function App() {
     });
   };
 
+  const createProjectFromScratch = name => {
+    if (!name) return;
+    const id = 'proj-' + Date.now();
+    setProjects([...projects, {
+      id,
+      name,
+      inputs: [{ name: 'input.json', content: '{}' }],
+      selectedInput: 'input.json',
+      modules: [{ type: 'file', name: 'default.jslt', content: '' }],
+      selectedTemplate: 'default.jslt'
+    }]);
+    setActiveId(id);
+  };
+
+  const handleImportFolder = e => {
+    const files = Array.from(e.target.files).filter(f => f.name.endsWith('.jslt'));
+    if (files.length === 0) { e.target.value = ''; return; }
+    const name = pendingImportName.current || 'Imported Project';
+    pendingImportName.current = '';
+    const id = 'proj-' + Date.now();
+    const mods = [];
+    let loaded = 0;
+    const finalize = () => {
+      mods.sort((a, b) => a.name.localeCompare(b.name));
+      const main = mods[0] ? mods[0].name : '';
+      setProjects(prev => [...prev, {
+        id,
+        name,
+        inputs: [{ name: 'input.json', content: '{}' }],
+        selectedInput: 'input.json',
+        modules: mods,
+        selectedTemplate: main
+      }]);
+      setActiveId(id);
+    };
+    if (files.length === 0) finalize();
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        mods.push({ type: 'file', name: file.webkitRelativePath || file.name, content: reader.result });
+        loaded++; if (loaded === files.length) finalize();
+      };
+      reader.readAsText(file);
+    });
+    e.target.value = '';
+  };
+
+  const handleCreateNewProject = () => {
+    setNewProjectName('');
+    setShowCreateModal(true);
+  };
+
+  const handleProjectChange = e => {
+    const val = e.target.value;
+    if (val === '__new__') {
+      e.target.value = activeId;
+      handleCreateNewProject();
+      return;
+    }
+    setActiveId(val);
+  };
+
   // JSON hover tooltip logic
   const [tooltip, setTooltip] = useState(null);
   const timeoutRef = useRef(null);
@@ -299,14 +365,22 @@ export default function App() {
     }
     let path = segs.join('');
     if (!path.startsWith('.')) path = '.' + path;
-    navigator.clipboard.writeText(path);
+    navigator.clipboard.writeText(path).catch(err => {
+      // clipboard API may fail without permissions
+      console.warn('Failed to copy', err);
+    });
     setTooltip({ path, x: e.clientX, y: e.clientY, copied: true });
     clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
       setTooltip(t => t && { ...t, copied: false });
     }, 2000);
   };
-  const onCopyTooltip = () => tooltip && navigator.clipboard.writeText(tooltip.path);
+  const onCopyTooltip = () => {
+    if (!tooltip) return;
+    navigator.clipboard.writeText(tooltip.path).catch(err => {
+      console.warn('Failed to copy', err);
+    });
+  };
 
   if (view === 'modules') {
     return <ModulesPage modules={modules} setModules={setModules} onBack={() => setView('main')} />;
@@ -315,70 +389,41 @@ export default function App() {
   return (
     <div className="root">
       <div className="topBar">
-        <div className="copyHint">Right-click on json field to copy JSLT path</div>
-        <div className="topBarRight">
-          <select value={activeId} onChange={e => setActiveId(e.target.value)}>
-            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <button className="btn" onClick={() => {
-            const name = prompt('Project name');
-            if (!name) return;
-            const id = 'proj-' + Date.now();
-            setProjects([...projects, {
-              id,
-              name,
-              inputs: [{ name: 'input.json', content: '{}' }],
-              selectedInput: 'input.json',
-              modules: [],
-              selectedTemplate: ''
-            }]);
-            setActiveId(id);
-          }}>New From Scratch</button>
-          <label className="btn fileUpload">
-            New From Folder
-            <input type="file" webkitdirectory="" directory="" multiple className="fileInput" onChange={e => {
-              const files = Array.from(e.target.files).filter(f => f.name.endsWith('.jslt'));
-              if (files.length === 0) { e.target.value=''; return; }
-              const name = prompt('Project name');
-              if (!name) { e.target.value=''; return; }
-              const id = 'proj-' + Date.now();
-              const mods = [];
-              let loaded = 0;
-              const finalize = () => {
-                mods.sort((a,b)=>a.name.localeCompare(b.name));
-                const main = mods[0] ? mods[0].name : '';
-                setProjects(prev => [...prev, {
-                  id,
-                  name,
-                  inputs: [{ name: 'input.json', content: '{}' }],
-                  selectedInput: 'input.json',
-                  modules: mods,
-                  selectedTemplate: main
-                }]);
-                setActiveId(id);
-              };
-              if (files.length === 0) finalize();
-              files.forEach(file => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                  mods.push({ type: 'file', name: file.webkitRelativePath || file.name, content: reader.result });
-                  loaded++; if (loaded === files.length) finalize();
-                };
-                reader.readAsText(file);
-              });
-              e.target.value = '';
-            }} />
+        <div className="projectSelect">
+          <label>
+            Select Project:
+            <select value={activeId} onChange={e => handleProjectChange(e)}>
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+              <option value="__new__">Create New Project...</option>
+            </select>
           </label>
+          <input
+            ref={folderInputRef}
+            type="file"
+            webkitdirectory=""
+            directory=""
+            multiple
+            className="fileInput"
+            style={{ display: 'none' }}
+            onChange={handleImportFolder}
+          />
+        </div>
+        <div className="topBarRight">
           <button className="btn" onClick={exportProject}>Export</button>
-          <button className="btn" onClick={deleteProject}>Delete</button>
-          <button className="btn" onClick={() => setView('modules')}>Modules</button>
+          <button className="btn" onClick={deleteProject}>Delete Project</button>
+          <button className="btn" onClick={() => setView('modules')}>Go to Modules</button>
         </div>
       </div>
       <div className="container">
         {!inputCollapsed && (!fullScreen || fullScreen === 'input') && (
           <div className="paneContainer">
             <div className="label">
-              Input JSON
+              <div>
+                Input JSON
+                <div className="copyHint">Right-click on json field to copy JSLT path</div>
+              </div>
               <div className="labelButtons">
                 <select value={selectedInput} onChange={e => setSelectedInput(e.target.value)}>
                   {inputs.map(i => <option key={i.name} value={i.name}>{i.name}</option>)}
@@ -488,6 +533,46 @@ export default function App() {
           </div>
         )}
       </div>
+      {showCreateModal && (
+        <div className="modalOverlay">
+          <div className="modalContent">
+            <h3>Create New Project</h3>
+            <input
+              type="text"
+              placeholder="Project name"
+              value={newProjectName}
+              onChange={e => setNewProjectName(e.target.value)}
+            />
+            <div className="modalButtons">
+              <button
+                className="btn"
+                onClick={() => {
+                  createProjectFromScratch(newProjectName.trim() || 'Untitled');
+                  setShowCreateModal(false);
+                }}
+              >
+                Start from Scratch
+              </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  pendingImportName.current = newProjectName.trim() || 'Imported Project';
+                  setShowCreateModal(false);
+                  if (folderInputRef.current) {
+                    folderInputRef.current.value = '';
+                    folderInputRef.current.click();
+                  }
+                }}
+              >
+                Import from Folder
+              </button>
+              <button className="btn" onClick={() => setShowCreateModal(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
