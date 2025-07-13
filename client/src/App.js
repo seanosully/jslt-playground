@@ -9,6 +9,44 @@ import { parseTree, findNodeAtOffset } from 'jsonc-parser';
 import './App.css';
 import ModulesPage from './ModulesPage';
 
+function formatJslt(text) {
+  let indent = 0;
+  let inString = false;
+  let escape = false;
+  let out = '';
+  const newline = () => { out += '\n' + '  '.repeat(indent); };
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"' && !escape) {
+      inString = !inString;
+      out += c;
+      continue;
+    }
+    if (inString) {
+      out += c;
+      escape = c === '\\' && !escape;
+      continue;
+    }
+    if (c === '{' || c === '[') {
+      out += c;
+      indent++;
+      newline();
+    } else if (c === '}' || c === ']') {
+      indent--;
+      newline();
+      out += c;
+    } else if (c === ',') {
+      out += c;
+      newline();
+    } else if (c === ':') {
+      out += ': ';
+    } else if (!/\s/.test(c)) {
+      out += c;
+    }
+  }
+  return out;
+}
+
 export default function App() {
   // Load initial state from localStorage or use defaults
   const [inputJson, setInputJson] = useState(() => {
@@ -82,7 +120,7 @@ export default function App() {
 
   // Beautify functions
   const beautifyInput = () => { try { setInputJson(JSON.stringify(JSON.parse(inputJson), null, 2)); } catch {} };
-  const beautifyJslt = () => { try { setJslt(JSON.stringify(JSON.parse(jslt), null, 2)); } catch {} };
+  const beautifyJslt = () => { setJslt(formatJslt(jslt)); };
 
   // JSON hover tooltip logic
   const [tooltip, setTooltip] = useState(null);
