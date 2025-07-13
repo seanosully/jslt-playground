@@ -10,7 +10,12 @@
   color: white;
   padding: 8px 12px;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.copyHint {
+  font-size: 0.9rem;
 }
 
 .container {

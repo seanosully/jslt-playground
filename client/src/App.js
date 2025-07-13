@@ -86,6 +86,7 @@ export default function App() {
 
   // JSON hover tooltip logic
   const [tooltip, setTooltip] = useState(null);
+  const timeoutRef = useRef(null);
   const onMouseMove = e => {
     if (!inputView) return setTooltip(null);
     const pos = inputView.posAtCoords({ x: e.clientX, y: e.clientY });
@@ -114,8 +115,34 @@ export default function App() {
   const onMouseLeave = () => setTooltip(null);
   const onContextMenu = e => {
     e.preventDefault();
-    onMouseMove(e);
-    tooltip && navigator.clipboard.writeText(tooltip.path);
+    if (!inputView) return;
+    const pos = inputView.posAtCoords({ x: e.clientX, y: e.clientY });
+    if (pos == null) return;
+    const tree = parseTree(inputJson);
+    if (!tree) return;
+    const node = findNodeAtOffset(tree, pos);
+    if (!node) return;
+    const segs = [];
+    let cur = node;
+    while (cur && cur.parent) {
+      if (cur.parent.type === 'property') {
+        segs.unshift('.' + cur.parent.children[0].value);
+        cur = cur.parent.parent;
+        continue;
+      }
+      if (cur.parent.type === 'array') {
+        const idx = cur.parent.children.indexOf(cur);
+        segs.unshift(`[${idx}]`);
+      }
+      cur = cur.parent;
+    }
+    const path = segs.join('');
+    navigator.clipboard.writeText(path);
+    setTooltip({ path, x: e.clientX, y: e.clientY, copied: true });
+    clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      setTooltip(t => t && { ...t, copied: false });
+    }, 2000);
   };
   const onCopyTooltip = () => tooltip && navigator.clipboard.writeText(tooltip.path);
 
@@ -126,6 +153,7 @@ export default function App() {
   return (
     <div className="root">
       <div className="topBar">
+        <div className="copyHint">Right-click on json field to copy JSLT path</div>
         <button className="btn" onClick={() => setView('modules')}>Modules</button>
       </div>
       <div className="container">
@@ -222,7 +250,7 @@ export default function App() {
             style={{ top: tooltip.y - 28, left: tooltip.x + 8 }}
             onClick={onCopyTooltip}
           >
-            {tooltip.path}
+            {tooltip.copied ? 'copied' : tooltip.path}
           </div>
         )}
       </div>
