@@ -9,88 +9,6 @@ import { parseTree, findNodeAtOffset } from 'jsonc-parser';
 import './App.css';
 import ModulesPage from './ModulesPage';
 
-function formatJslt(text) {
-  let i = 0;
-  let indent = 0;
-  let out = '';
-  const ws = /\s/;
-  const newline = () => { out += '\n' + '  '.repeat(indent); };
-
-  const skipWs = () => { while (i < text.length && ws.test(text[i])) i++; };
-
-  function parseValue() {
-    const start = i;
-    let inStr = false;
-    let esc = false;
-    let depth = 0;
-    while (i < text.length) {
-      const ch = text[i];
-      if (inStr) {
-        if (ch === '"' && !esc) inStr = false;
-        esc = ch === '\\' && !esc;
-        i++;
-        continue;
-      }
-      if (ch === '"') { inStr = true; i++; continue; }
-      if (ch === '{' || ch === '[' || ch === '(') { depth++; i++; continue; }
-      if (ch === '}' || ch === ']' || ch === ')') {
-        if (depth === 0) break;
-        depth--; i++; continue;
-      }
-      if ((ch === ',' || ch === '}' || ch === ']') && depth === 0) break;
-      i++;
-    }
-    return text.slice(start, i).trim();
-  }
-
-  skipWs();
-  while (i < text.length) {
-    const ch = text[i];
-    if (ch === '{' || ch === '[') {
-      out += ch;
-      i++;
-      indent++;
-      skipWs();
-      if (text[i] !== '}' && text[i] !== ']') { newline(); skipWs(); }
-      continue;
-    }
-    if (ch === '}' || ch === ']') {
-      indent--;
-      newline();
-      out += ch;
-      i++;
-      skipWs();
-      if (text[i] === ',') { out += ','; i++; skipWs(); newline(); skipWs(); }
-      continue;
-    }
-    if (ch === '"') {
-      let start = i;
-      i++;
-      while (i < text.length) {
-        if (text[i] === '"' && text[i - 1] !== '\\') { i++; break; }
-        i++;
-      }
-      const key = text.slice(start, i);
-      skipWs();
-      if (text[i] === ':') {
-        out += key + ': ';
-        i++; skipWs();
-        out += parseValue();
-        skipWs();
-        if (text[i] === ',') { out += ','; i++; skipWs(); newline(); skipWs(); }
-        else if (text[i] !== '}' && text[i] !== ']') { newline(); }
-      } else {
-        out += key;
-      }
-    } else {
-      out += parseValue();
-      skipWs();
-      if (text[i] === ',') { out += ','; i++; skipWs(); newline(); skipWs(); }
-    }
-  }
-  return out.trim();
-}
-
 export default function App() {
   // Projects handling -----------------------------------------------------
   const loadProjects = () => {
@@ -206,7 +124,35 @@ export default function App() {
 
   // Beautify functions
   const beautifyInput = () => { try { setInputJson(JSON.stringify(JSON.parse(inputJson), null, 2)); } catch {} };
-  const beautifyJslt = () => { setJslt(formatJslt(jslt)); };
+
+  const exportProject = () => {
+    const proj = projects.find(p => p.id === activeId);
+    if (!proj) return;
+    const data = JSON.stringify(proj, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${proj.name || 'project'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const deleteProject = () => {
+    if (!window.confirm('Delete current project?')) return;
+    setProjects(prev => {
+      const filtered = prev.filter(p => p.id !== activeId);
+      if (filtered.length === 0) {
+        const id = 'proj-' + Date.now();
+        setActiveId(id);
+        return [{ id, name: 'Default', inputJson: '{}', modules: [], selectedTemplate: '' }];
+      }
+      if (!filtered.find(p => p.id === activeId)) {
+        setActiveId(filtered[0].id);
+      }
+      return filtered;
+    });
+  };
 
   // JSON hover tooltip logic
   const [tooltip, setTooltip] = useState(null);
@@ -317,6 +263,8 @@ export default function App() {
               e.target.value = '';
             }} />
           </label>
+          <button className="btn" onClick={exportProject}>Export</button>
+          <button className="btn" onClick={deleteProject}>Delete</button>
           <button className="btn" onClick={() => setView('modules')}>Modules</button>
         </div>
       </div>
@@ -362,7 +310,6 @@ export default function App() {
                     <option key={m.name} value={m.name}>{m.name}</option>
                   ))}
                 </select>
-                <button className="btn" onClick={beautifyJslt}>Beautify</button>
                 <button className="btn" onClick={() => setFullScreen(fullScreen === 'template' ? null : 'template')}>{fullScreen === 'template' ? 'Exit' : 'Expand'}</button>
                 <button
                   className="collapseBtn"

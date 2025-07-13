@@ -123,6 +123,16 @@
 
 .btn {
   margin-left: 8px;
+  padding: 4px 8px;
+  background: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: #0056b3;
 }
 
 /* Module section header */
