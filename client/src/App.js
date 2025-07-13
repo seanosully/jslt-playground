@@ -9,6 +9,88 @@ import { parseTree, findNodeAtOffset } from 'jsonc-parser';
 import './App.css';
 import ModulesPage from './ModulesPage';
 
+function formatJslt(text) {
+  let i = 0;
+  let indent = 0;
+  let out = '';
+  const ws = /\s/;
+  const newline = () => { out += '\n' + '  '.repeat(indent); };
+
+  const skipWs = () => { while (i < text.length && ws.test(text[i])) i++; };
+
+  function parseValue() {
+    const start = i;
+    let inStr = false;
+    let esc = false;
+    let depth = 0;
+    while (i < text.length) {
+      const ch = text[i];
+      if (inStr) {
+        if (ch === '"' && !esc) inStr = false;
+        esc = ch === '\\' && !esc;
+        i++;
+        continue;
+      }
+      if (ch === '"') { inStr = true; i++; continue; }
+      if (ch === '{' || ch === '[' || ch === '(') { depth++; i++; continue; }
+      if (ch === '}' || ch === ']' || ch === ')') {
+        if (depth === 0) break;
+        depth--; i++; continue;
+      }
+      if ((ch === ',' || ch === '}' || ch === ']') && depth === 0) break;
+      i++;
+    }
+    return text.slice(start, i).trim();
+  }
+
+  skipWs();
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '{' || ch === '[') {
+      out += ch;
+      i++;
+      indent++;
+      skipWs();
+      if (text[i] !== '}' && text[i] !== ']') { newline(); skipWs(); }
+      continue;
+    }
+    if (ch === '}' || ch === ']') {
+      indent--;
+      newline();
+      out += ch;
+      i++;
+      skipWs();
+      if (text[i] === ',') { out += ','; i++; skipWs(); newline(); skipWs(); }
+      continue;
+    }
+    if (ch === '"') {
+      let start = i;
+      i++;
+      while (i < text.length) {
+        if (text[i] === '"' && text[i - 1] !== '\\') { i++; break; }
+        i++;
+      }
+      const key = text.slice(start, i);
+      skipWs();
+      if (text[i] === ':') {
+        out += key + ': ';
+        i++; skipWs();
+        out += parseValue();
+        skipWs();
+        if (text[i] === ',') { out += ','; i++; skipWs(); newline(); skipWs(); }
+        else if (text[i] !== '}' && text[i] !== ']') { newline(); }
+      } else {
+        out += key;
+      }
+    } else {
+      out += parseValue();
+      skipWs();
+      if (text[i] === ',') { out += ','; i++; skipWs(); newline(); skipWs(); }
+    }
+  }
+  return out.trim();
+}
+
 export default function App() {
   // Load initial state from localStorage or use defaults
   const [inputJson, setInputJson] = useState(() => {
@@ -82,10 +164,11 @@ export default function App() {
 
   // Beautify functions
   const beautifyInput = () => { try { setInputJson(JSON.stringify(JSON.parse(inputJson), null, 2)); } catch {} };
-  const beautifyJslt = () => { try { setJslt(JSON.stringify(JSON.parse(jslt), null, 2)); } catch {} };
+  const beautifyJslt = () => { setJslt(formatJslt(jslt)); };
 
   // JSON hover tooltip logic
   const [tooltip, setTooltip] = useState(null);
+  const timeoutRef = useRef(null);
   const onMouseMove = e => {
     if (!inputView) return setTooltip(null);
     const pos = inputView.posAtCoords({ x: e.clientX, y: e.clientY });
@@ -114,8 +197,34 @@ export default function App() {
   const onMouseLeave = () => setTooltip(null);
   const onContextMenu = e => {
     e.preventDefault();
-    onMouseMove(e);
-    tooltip && navigator.clipboard.writeText(tooltip.path);
+    if (!inputView) return;
+    const pos = inputView.posAtCoords({ x: e.clientX, y: e.clientY });
+    if (pos == null) return;
+    const tree = parseTree(inputJson);
+    if (!tree) return;
+    const node = findNodeAtOffset(tree, pos);
+    if (!node) return;
+    const segs = [];
+    let cur = node;
+    while (cur && cur.parent) {
+      if (cur.parent.type === 'property') {
+        segs.unshift('.' + cur.parent.children[0].value);
+        cur = cur.parent.parent;
+        continue;
+      }
+      if (cur.parent.type === 'array') {
+        const idx = cur.parent.children.indexOf(cur);
+        segs.unshift(`[${idx}]`);
+      }
+      cur = cur.parent;
+    }
+    const path = segs.join('');
+    navigator.clipboard.writeText(path);
+    setTooltip({ path, x: e.clientX, y: e.clientY, copied: true });
+    clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      setTooltip(t => t && { ...t, copied: false });
+    }, 2000);
   };
   const onCopyTooltip = () => tooltip && navigator.clipboard.writeText(tooltip.path);
 
@@ -126,6 +235,7 @@ export default function App() {
   return (
     <div className="root">
       <div className="topBar">
+        <div className="copyHint">Right-click on json field to copy JSLT path</div>
         <button className="btn" onClick={() => setView('modules')}>Modules</button>
       </div>
       <div className="container">
@@ -222,7 +332,7 @@ export default function App() {
             style={{ top: tooltip.y - 28, left: tooltip.x + 8 }}
             onClick={onCopyTooltip}
           >
-            {tooltip.path}
+            {tooltip.copied ? 'copied' : tooltip.path}
           </div>
         )}
       </div>
