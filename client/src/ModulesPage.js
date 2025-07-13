@@ -110,7 +110,7 @@ export default function ModulesPage({ modules, setModules, onBack }) {
 
   const renderNode = node => {
     if (node.type === 'folder') {
-      const isOpen = openFolders[node.path];
+      const isOpen = openFolders[node.path] !== false;
       return (
         <div key={node.path}>
           <div className="treeItemRow">
@@ -163,20 +163,16 @@ export default function ModulesPage({ modules, setModules, onBack }) {
           <div className="label">
             Files
             <div className="labelButtons moduleControls">
-              <div className="buttonRow">
-                <button className="btn" onClick={addFile}>New File</button>
-                <button className="btn" onClick={addFolder}>New Folder</button>
-              </div>
-              <div className="buttonRow">
-                <label className="btn fileUpload">
-                  Upload File
-                  <input type="file" accept=".jslt" multiple className="fileInput" onChange={handleModuleUpload} />
-                </label>
-                <label className="btn fileUpload">
-                  Upload Folder
-                  <input type="file" webkitdirectory="" directory="" multiple className="fileInput" onChange={handleFolderUpload} />
-                </label>
-              </div>
+              <button className="btn smallBtn" onClick={addFile}>New File</button>
+              <button className="btn smallBtn" onClick={addFolder}>New Folder</button>
+              <label className="btn smallBtn fileUpload">
+                Upload File
+                <input type="file" accept=".jslt" multiple className="fileInput" onChange={handleModuleUpload} />
+              </label>
+              <label className="btn smallBtn fileUpload">
+                Upload Folder
+                <input type="file" webkitdirectory="" directory="" multiple className="fileInput" onChange={handleFolderUpload} />
+              </label>
             </div>
           </div>
           <div className="treeScroll">
