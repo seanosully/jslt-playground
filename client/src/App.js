@@ -62,6 +62,9 @@ export default function App() {
   const [view, setView] = useState('main');
   const lastGoodRef = useRef('');
   const folderInputRef = useRef(null);
+  const pendingImportName = useRef('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
 
   // Load project data when active project changes
   useEffect(() => {
@@ -245,8 +248,7 @@ export default function App() {
     });
   };
 
-  const createProjectFromScratch = () => {
-    const name = prompt('Project name');
+  const createProjectFromScratch = name => {
     if (!name) return;
     const id = 'proj-' + Date.now();
     setProjects([...projects, {
@@ -263,8 +265,8 @@ export default function App() {
   const handleImportFolder = e => {
     const files = Array.from(e.target.files).filter(f => f.name.endsWith('.jslt'));
     if (files.length === 0) { e.target.value = ''; return; }
-    const name = prompt('Project name');
-    if (!name) { e.target.value = ''; return; }
+    const name = pendingImportName.current || 'Imported Project';
+    pendingImportName.current = '';
     const id = 'proj-' + Date.now();
     const mods = [];
     let loaded = 0;
@@ -294,12 +296,8 @@ export default function App() {
   };
 
   const handleCreateNewProject = () => {
-    if (window.confirm('Start project from scratch? Click Cancel to import from folder.')) {
-      createProjectFromScratch();
-    } else if (folderInputRef.current) {
-      folderInputRef.current.value = '';
-      folderInputRef.current.click();
-    }
+    setNewProjectName('');
+    setShowCreateModal(true);
   };
 
   const handleProjectChange = e => {
@@ -527,6 +525,46 @@ export default function App() {
           </div>
         )}
       </div>
+      {showCreateModal && (
+        <div className="modalOverlay">
+          <div className="modalContent">
+            <h3>Create New Project</h3>
+            <input
+              type="text"
+              placeholder="Project name"
+              value={newProjectName}
+              onChange={e => setNewProjectName(e.target.value)}
+            />
+            <div className="modalButtons">
+              <button
+                className="btn"
+                onClick={() => {
+                  createProjectFromScratch(newProjectName.trim() || 'Untitled');
+                  setShowCreateModal(false);
+                }}
+              >
+                Start from Scratch
+              </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  pendingImportName.current = newProjectName.trim() || 'Imported Project';
+                  setShowCreateModal(false);
+                  if (folderInputRef.current) {
+                    folderInputRef.current.value = '';
+                    folderInputRef.current.click();
+                  }
+                }}
+              >
+                Import from Folder
+              </button>
+              <button className="btn" onClick={() => setShowCreateModal(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
