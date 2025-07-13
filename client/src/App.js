@@ -136,7 +136,15 @@ export default function App() {
               <div className="labelButtons">
                 <button className="btn" onClick={beautifyInput}>Beautify</button>
                 <button className="btn" onClick={() => setFullScreen(fullScreen === 'input' ? null : 'input')}>{fullScreen === 'input' ? 'Exit' : 'Expand'}</button>
-                <button className="collapseBtn" onClick={() => setInputCollapsed(true)}>⏴</button>
+                <button
+                  className="collapseBtn"
+                  onClick={() => {
+                    setFullScreen(null);
+                    setInputCollapsed(true);
+                  }}
+                >
+                  ⏴
+                </button>
               </div>
             </div>
             <div
@@ -159,7 +167,15 @@ export default function App() {
               <div className="labelButtons">
                 <button className="btn" onClick={beautifyJslt}>Beautify</button>
                 <button className="btn" onClick={() => setFullScreen(fullScreen === 'template' ? null : 'template')}>{fullScreen === 'template' ? 'Exit' : 'Expand'}</button>
-                <button className="collapseBtn" onClick={() => setTemplateCollapsed(true)}>⏴</button>
+                <button
+                  className="collapseBtn"
+                  onClick={() => {
+                    setFullScreen(null);
+                    setTemplateCollapsed(true);
+                  }}
+                >
+                  ⏴
+                </button>
               </div>
             </div>
             <div className="editor">
@@ -181,7 +197,15 @@ export default function App() {
               Output JSON
               <div className="labelButtons">
                 <button className="btn" onClick={() => setFullScreen(fullScreen === 'output' ? null : 'output')}>{fullScreen === 'output' ? 'Exit' : 'Expand'}</button>
-                <button className="collapseBtn" onClick={() => setOutputCollapsed(true)}>⏴</button>
+                <button
+                  className="collapseBtn"
+                  onClick={() => {
+                    setFullScreen(null);
+                    setOutputCollapsed(true);
+                  }}
+                >
+                  ⏴
+                </button>
               </div>
             </div>
             <pre className="output">{output}</pre>
