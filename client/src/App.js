@@ -133,11 +133,15 @@ export default function App() {
     if (!proj) return;
     setInputJson(proj.inputJson || '');
     setModules(proj.modules || []);
-    const main = proj.selectedTemplate || (proj.modules.find(m => (m.type || 'file') !== 'folder') || {}).name || '';
+    const main =
+      proj.selectedTemplate ||
+      (proj.modules.find(m => (m.type || 'file') !== 'folder') || {}).name || '';
     setSelectedTemplate(main);
-    const mod = proj.modules.find(m => m.name === main && (m.type || 'file') !== 'folder');
+    const mod = proj.modules.find(
+      m => m.name === main && (m.type || 'file') !== 'folder'
+    );
     setJslt(mod ? mod.content : '');
-  }, [activeId, projects]);
+  }, [activeId]);
 
   // keep jslt editor in sync with selected template
   useEffect(() => {
