@@ -15,13 +15,27 @@ export default function App() {
   const loadProjects = () => {
     const saved = localStorage.getItem('projects');
     if (saved) {
-      try { return JSON.parse(saved); } catch { /* ignore */ }
+      try {
+        const parsed = JSON.parse(saved);
+        // migrate old format with single inputJson
+        parsed.forEach(p => {
+          if (!p.inputs) {
+            p.inputs = [{ name: 'input.json', content: p.inputJson || '{}' }];
+            p.selectedInput = 'input.json';
+            delete p.inputJson;
+          }
+        });
+        return parsed;
+      } catch {
+        /* ignore */
+      }
     }
     const id = 'proj-' + Date.now();
     return [{
       id,
       name: 'Default',
-      inputJson: '{\n  "data": { "fruit": { "cost": 12 } }\n}',
+      inputs: [{ name: 'input.json', content: '{\n  "data": { "fruit": { "cost": 12 } }\n}' }],
+      selectedInput: 'input.json',
       modules: [{ type: 'file', name: 'main.jslt', content: '{\n  "price": .data.fruit.cost\n}' }],
       selectedTemplate: 'main.jslt'
     }];
@@ -32,6 +46,8 @@ export default function App() {
     return localStorage.getItem('activeProjectId') || projects[0].id;
   });
 
+  const [inputs, setInputs] = useState([]);
+  const [selectedInput, setSelectedInput] = useState('');
   const [inputJson, setInputJson] = useState('');
   const [modules, setModules] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState('');
@@ -50,7 +66,13 @@ export default function App() {
   useEffect(() => {
     const proj = projects.find(p => p.id === activeId);
     if (!proj) return;
-    setInputJson(proj.inputJson || '');
+    setInputs(proj.inputs || []);
+    const inputName =
+      proj.selectedInput ||
+      ((proj.inputs && proj.inputs[0]) ? proj.inputs[0].name : '');
+    setSelectedInput(inputName);
+    const inp = (proj.inputs || []).find(i => i.name === inputName);
+    setInputJson(inp ? inp.content : '');
     setModules(proj.modules || []);
     const main =
       proj.selectedTemplate ||
@@ -76,12 +98,17 @@ export default function App() {
   useEffect(() => {
     setProjects(prev => prev.map(p => {
       if (p.id !== activeId) return p;
-      if (p.inputJson === inputJson && p.selectedTemplate === selectedTemplate && JSON.stringify(p.modules) === JSON.stringify(modules)) {
+      if (
+        JSON.stringify(p.inputs) === JSON.stringify(inputs) &&
+        p.selectedInput === selectedInput &&
+        p.selectedTemplate === selectedTemplate &&
+        JSON.stringify(p.modules) === JSON.stringify(modules)
+      ) {
         return p;
       }
-      return { ...p, inputJson, modules, selectedTemplate };
+      return { ...p, inputs, selectedInput, modules, selectedTemplate };
     }));
-  }, [inputJson, modules, selectedTemplate, activeId]);
+  }, [inputs, selectedInput, modules, selectedTemplate, activeId]);
 
   // Persist projects and active project id
   useEffect(() => { localStorage.setItem('projects', JSON.stringify(projects)); }, [projects]);
@@ -91,8 +118,20 @@ export default function App() {
   const { view: inputView, setContainer: setInputContainer } = useCodeMirror({
     value: inputJson,
     extensions: [json(), keymap.of([indentWithTab])],
-    onChange: setInputJson,
+    onChange: value => {
+      setInputJson(value);
+      setInputs(prev => prev.map(i =>
+        i.name === selectedInput ? { ...i, content: value } : i
+      ));
+    },
   });
+
+  // keep input editor in sync with selected input
+  useEffect(() => {
+    const inp = inputs.find(i => i.name === selectedInput);
+    if (inp && inp.content !== inputJson) setInputJson(inp.content);
+    if (!inp && inputs[0]) setSelectedInput(inputs[0].name);
+  }, [inputs, selectedInput]);
 
   // Debounced transform + format output
   useEffect(() => {
@@ -124,12 +163,49 @@ export default function App() {
   }, [inputJson, jslt, modules]);
 
   // Beautify functions
-  const beautifyInput = () => { try { setInputJson(JSON.stringify(JSON.parse(inputJson), null, 2)); } catch {} };
+  const beautifyInput = () => {
+    try {
+      const pretty = JSON.stringify(JSON.parse(inputJson), null, 2);
+      setInputJson(pretty);
+      setInputs(prev => prev.map(i =>
+        i.name === selectedInput ? { ...i, content: pretty } : i
+      ));
+    } catch {}
+  };
+
+  const addInput = () => {
+    const name = prompt('New input file name');
+    if (!name) return;
+    const fileName = name.endsWith('.json') ? name : name + '.json';
+    setInputs([...inputs, { name: fileName, content: '{}' }]);
+    setSelectedInput(fileName);
+    setInputJson('{}');
+  };
+
+  const deleteInput = () => {
+    if (!window.confirm(`Delete ${selectedInput}?`)) return;
+    setInputs(prev => {
+      const filtered = prev.filter(i => i.name !== selectedInput);
+      if (filtered.length === 0) {
+        const def = { name: 'input.json', content: '{}' };
+        setSelectedInput(def.name);
+        setInputJson(def.content);
+        return [def];
+      }
+      const next = filtered[0];
+      setSelectedInput(next.name);
+      setInputJson(next.content);
+      return filtered;
+    });
+  };
 
   const exportProject = () => {
     const proj = projects.find(p => p.id === activeId);
     if (!proj) return;
     const files = [{ name: `${proj.name}/`, data: '' }];
+    (proj.inputs || []).forEach(i => {
+      files.push({ name: `${proj.name}/inputs/${i.name}`, data: i.content });
+    });
     proj.modules.forEach(m => {
       files.push({
         name: `${proj.name}/${m.name}`,
@@ -152,7 +228,14 @@ export default function App() {
       if (filtered.length === 0) {
         const id = 'proj-' + Date.now();
         setActiveId(id);
-        return [{ id, name: 'Default', inputJson: '{}', modules: [], selectedTemplate: '' }];
+        return [{
+          id,
+          name: 'Default',
+          inputs: [{ name: 'input.json', content: '{}' }],
+          selectedInput: 'input.json',
+          modules: [],
+          selectedTemplate: ''
+        }];
       }
       if (!filtered.find(p => p.id === activeId)) {
         setActiveId(filtered[0].id);
@@ -241,7 +324,14 @@ export default function App() {
             const name = prompt('Project name');
             if (!name) return;
             const id = 'proj-' + Date.now();
-            setProjects([...projects, { id, name, inputJson: '{}', modules: [], selectedTemplate: '' }]);
+            setProjects([...projects, {
+              id,
+              name,
+              inputs: [{ name: 'input.json', content: '{}' }],
+              selectedInput: 'input.json',
+              modules: [],
+              selectedTemplate: ''
+            }]);
             setActiveId(id);
           }}>New From Scratch</button>
           <label className="btn fileUpload">
@@ -257,7 +347,14 @@ export default function App() {
               const finalize = () => {
                 mods.sort((a,b)=>a.name.localeCompare(b.name));
                 const main = mods[0] ? mods[0].name : '';
-                setProjects(prev => [...prev, { id, name, inputJson: '{}', modules: mods, selectedTemplate: main }]);
+                setProjects(prev => [...prev, {
+                  id,
+                  name,
+                  inputs: [{ name: 'input.json', content: '{}' }],
+                  selectedInput: 'input.json',
+                  modules: mods,
+                  selectedTemplate: main
+                }]);
                 setActiveId(id);
               };
               if (files.length === 0) finalize();
@@ -283,6 +380,11 @@ export default function App() {
             <div className="label">
               Input JSON
               <div className="labelButtons">
+                <select value={selectedInput} onChange={e => setSelectedInput(e.target.value)}>
+                  {inputs.map(i => <option key={i.name} value={i.name}>{i.name}</option>)}
+                </select>
+                <button className="btn" onClick={addInput}>New</button>
+                <button className="btn" onClick={deleteInput}>Delete</button>
                 <button className="btn" onClick={beautifyInput}>Beautify</button>
                 <button className="btn" onClick={() => setFullScreen(fullScreen === 'input' ? null : 'input')}>{fullScreen === 'input' ? 'Exit' : 'Expand'}</button>
                 <button
