@@ -18,6 +18,12 @@
   font-size: 0.9rem;
 }
 
+.topBarRight {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .container {
   flex: 1;
   display: flex;
@@ -91,6 +97,10 @@
   flex-wrap: wrap;
 }
 
+.labelButtons select {
+  padding: 2px 4px;
+}
+
 .moduleControls {
   flex-direction: column;
   align-items: flex-start;
@@ -113,6 +123,16 @@
 
 .btn {
   margin-left: 8px;
+  padding: 4px 8px;
+  background: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: #0056b3;
 }
 
 /* Module section header */
