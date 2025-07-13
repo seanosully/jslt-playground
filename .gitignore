@@ -14,3 +14,7 @@ server/node_modules/
 
 # Local env files
 .env
+
+# Prevent stray npm lock files
+**/package-lock*.json
+!**/package-lock.json
