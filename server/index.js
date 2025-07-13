@@ -5,6 +5,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { validateModuleName } from './validate.js';
 
 // ─── Shim __dirname in ESM ─────────────────────────────────────────────────────
 const __filename = fileURLToPath(import.meta.url);
@@ -25,8 +26,12 @@ app.post('/api/transform', async (req, res) => {
 
   // 3) Write each user module under tmpDir
   for (let mod of modules) {
-    const safeName = mod.name.replace(/\.\.(\/|\\)/g, '');
-    const target   = path.join(tmpDir, safeName);
+    if (!validateModuleName(mod.name)) {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      return res.status(400).json({ error: 'Invalid module path' });
+    }
+
+    const target = path.join(tmpDir, path.normalize(mod.name));
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, mod.content);
   }
