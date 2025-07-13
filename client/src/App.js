@@ -365,14 +365,26 @@ export default function App() {
     }
     let path = segs.join('');
     if (!path.startsWith('.')) path = '.' + path;
-    navigator.clipboard.writeText(path);
+    try {
+      navigator.clipboard.writeText(path);
+    } catch (err) {
+      // clipboard API may fail without permissions
+      console.warn('Failed to copy', err);
+    }
     setTooltip({ path, x: e.clientX, y: e.clientY, copied: true });
     clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
       setTooltip(t => t && { ...t, copied: false });
     }, 2000);
   };
-  const onCopyTooltip = () => tooltip && navigator.clipboard.writeText(tooltip.path);
+  const onCopyTooltip = () => {
+    if (!tooltip) return;
+    try {
+      navigator.clipboard.writeText(tooltip.path);
+    } catch (err) {
+      console.warn('Failed to copy', err);
+    }
+  };
 
   if (view === 'modules') {
     return <ModulesPage modules={modules} setModules={setModules} onBack={() => setView('main')} />;
