@@ -186,7 +186,8 @@ export default function App() {
       }
       cur = cur.parent;
     }
-    const path = segs.join('');
+    let path = segs.join('');
+    if (!path.startsWith('.')) path = '.' + path;
     setTooltip({ path, x: e.clientX, y: e.clientY });
   };
   const onMouseLeave = () => setTooltip(null);
@@ -213,7 +214,8 @@ export default function App() {
       }
       cur = cur.parent;
     }
-    const path = segs.join('');
+    let path = segs.join('');
+    if (!path.startsWith('.')) path = '.' + path;
     navigator.clipboard.writeText(path);
     setTooltip({ path, x: e.clientX, y: e.clientY, copied: true });
     clearTimeout(timeoutRef.current);
