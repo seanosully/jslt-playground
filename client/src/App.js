@@ -11,25 +11,29 @@ import ModulesPage from './ModulesPage';
 
 function formatJslt(text) {
   let i = 0;
-  let indent = 0;
-  let out = '';
   const ws = /\s/;
-  const newline = () => { out += '\n' + '  '.repeat(indent); };
 
   const skipWs = () => { while (i < text.length && ws.test(text[i])) i++; };
 
-  function parseValue() {
+  function parseString() {
     const start = i;
-    let inStr = false;
-    let esc = false;
-    let depth = 0;
+    i++;
+    while (i < text.length) {
+      if (text[i] === '"' && text[i - 1] !== '\\') { i++; break; }
+      i++;
+    }
+    return text.slice(start, i);
+  }
+
+  function parseScalar() {
+    const start = i;
+    let inStr = false, esc = false, depth = 0;
     while (i < text.length) {
       const ch = text[i];
       if (inStr) {
         if (ch === '"' && !esc) inStr = false;
         esc = ch === '\\' && !esc;
-        i++;
-        continue;
+        i++; continue;
       }
       if (ch === '"') { inStr = true; i++; continue; }
       if (ch === '{' || ch === '[' || ch === '(') { depth++; i++; continue; }
@@ -37,58 +41,71 @@ function formatJslt(text) {
         if (depth === 0) break;
         depth--; i++; continue;
       }
-      if ((ch === ',' || ch === '}' || ch === ']') && depth === 0) break;
+      if (depth === 0 && (ch === ',' || ch === '}' || ch === ']')) break;
       i++;
     }
-    return text.slice(start, i).trim();
+    return text.slice(start, i);
   }
 
-  skipWs();
-  while (i < text.length) {
-    const ch = text[i];
-    if (ch === '{' || ch === '[') {
-      out += ch;
-      i++;
-      indent++;
+  function formatValue(indent) {
+    skipWs();
+    if (text[i] === '{') return formatObject(indent);
+    if (text[i] === '[') return formatArray(indent);
+    return parseScalar();
+  }
+
+  function formatObject(indent) {
+    let out = '{';
+    i++; // skip '{'
+    skipWs();
+    if (text[i] === '}') { i++; return out + '}'; }
+    out += '\n';
+    let first = true;
+    while (i < text.length && text[i] !== '}') {
       skipWs();
-      if (text[i] !== '}' && text[i] !== ']') { newline(); skipWs(); }
-      continue;
-    }
-    if (ch === '}' || ch === ']') {
-      indent--;
-      newline();
-      out += ch;
-      i++;
-      skipWs();
-      if (text[i] === ',') { out += ','; i++; skipWs(); newline(); skipWs(); }
-      continue;
-    }
-    if (ch === '"') {
-      let start = i;
-      i++;
-      while (i < text.length) {
-        if (text[i] === '"' && text[i - 1] !== '\\') { i++; break; }
-        i++;
-      }
-      const key = text.slice(start, i);
+      if (!first) out += ',\n';
+      out += '  '.repeat(indent + 1);
+      const key = parseString();
+      out += key;
       skipWs();
       if (text[i] === ':') {
-        out += key + ': ';
-        i++; skipWs();
-        out += parseValue();
-        skipWs();
-        if (text[i] === ',') { out += ','; i++; skipWs(); newline(); skipWs(); }
-        else if (text[i] !== '}' && text[i] !== ']') { newline(); }
-      } else {
-        out += key;
+        out += ': ';
+        i++;
+        out += formatValue(indent + 1);
       }
-    } else {
-      out += parseValue();
       skipWs();
-      if (text[i] === ',') { out += ','; i++; skipWs(); newline(); skipWs(); }
+      if (text[i] === ',') i++;
+      first = false;
     }
+    out += '\n' + '  '.repeat(indent) + '}';
+    if (text[i] === '}') i++;
+    return out;
   }
-  return out.trim();
+
+  function formatArray(indent) {
+    let out = '[';
+    i++; // skip '['
+    skipWs();
+    if (text[i] === ']') { i++; return out + ']'; }
+    out += '\n';
+    let first = true;
+    while (i < text.length && text[i] !== ']') {
+      skipWs();
+      if (!first) out += ',\n';
+      out += '  '.repeat(indent + 1);
+      out += formatValue(indent + 1);
+      skipWs();
+      if (text[i] === ',') i++;
+      first = false;
+    }
+    out += '\n' + '  '.repeat(indent) + ']';
+    if (text[i] === ']') i++;
+    return out;
+  }
+
+  const result = formatValue(0);
+  skipWs();
+  return result;
 }
 
 export default function App() {
