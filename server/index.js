@@ -1,6 +1,5 @@
 // server/index.js
 import express from 'express';
-import bodyParser from 'body-parser';
 import { spawn } from 'child_process';
 import fs from 'fs';
 import os from 'os';
@@ -12,7 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
 const app = express();
-app.use(bodyParser.json());
+app.use(express.json());
 
 app.post('/api/transform', async (req, res) => {
   const { inputJson, jslt, modules = [] } = req.body;
