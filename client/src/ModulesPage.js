@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
 import { keymap } from '@codemirror/view';
@@ -8,6 +8,7 @@ import './App.css';
 export default function ModulesPage({ modules, setModules, onBack }) {
   const [selected, setSelected] = useState(null);
   const [openFolders, setOpenFolders] = useState({});
+  const dragPathRef = useRef(null);
 
   const buildTree = () => {
     const root = { children: {} };
@@ -106,6 +107,30 @@ export default function ModulesPage({ modules, setModules, onBack }) {
     }
   };
 
+  const moveEntry = (src, destFolder) => {
+    const isFolder = src.endsWith('/');
+    if (destFolder && !destFolder.endsWith('/')) destFolder += '/';
+    const base = isFolder ? src.slice(0, -1).split('/').pop() + '/' : src.split('/').pop();
+    setModules(prev => prev.map(m => {
+      if (isFolder) {
+        if (m.name.startsWith(src)) {
+          const suffix = m.name.slice(src.length);
+          return { ...m, name: destFolder + base + suffix };
+        }
+        return m;
+      }
+      if (m.name === src) {
+        return { ...m, name: destFolder + base };
+      }
+      return m;
+    }));
+    if (selected && selected.startsWith(src)) {
+      const suffix = selected.slice(src.length);
+      setSelected(destFolder + base + suffix);
+    }
+    setOpenFolders(prev => ({ ...prev, [destFolder || '']: true }));
+  };
+
   const findModule = path => modules.find(m => m.name === path && (m.type || 'file') !== 'folder');
 
   const renderNode = node => {
@@ -113,7 +138,19 @@ export default function ModulesPage({ modules, setModules, onBack }) {
       const isOpen = openFolders[node.path] !== false;
       return (
         <div key={node.path}>
-          <div className="treeItemRow">
+          <div
+            className="treeItemRow"
+            draggable
+            onDragStart={e => (dragPathRef.current = node.path)}
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => {
+              e.preventDefault();
+              const src = dragPathRef.current;
+              if (src && src !== node.path && !node.path.startsWith(src)) {
+                moveEntry(src, node.path);
+              }
+            }}
+          >
             <div className="treeItem folder" onClick={() => toggleFolder(node.path)}>
               {isOpen ? '📂' : '📁'} {node.name}
             </div>
@@ -136,6 +173,8 @@ export default function ModulesPage({ modules, setModules, onBack }) {
       <div
         key={node.path}
         className={`treeItemRow file${selected === node.path ? ' selected' : ''}`}
+        draggable
+        onDragStart={e => (dragPathRef.current = node.path)}
       >
         <div
           className={`treeItem file${selected === node.path ? ' selected' : ''}`}
@@ -175,8 +214,18 @@ export default function ModulesPage({ modules, setModules, onBack }) {
               </label>
             </div>
           </div>
-          <div className="treeScroll">
-            {Object.values(tree.children).sort((a,b)=>a.name.localeCompare(b.name)).map(renderNode)}
+          <div
+            className="treeScroll"
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => {
+              e.preventDefault();
+              const src = dragPathRef.current;
+              if (src) moveEntry(src, '');
+            }}
+          >
+            {Object.values(tree.children)
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map(renderNode)}
           </div>
         </div>
         <div className="editorPane">

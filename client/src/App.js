@@ -36,8 +36,8 @@ export default function App() {
       name: 'Default',
       inputs: [{ name: 'input.json', content: '{\n  "data": { "fruit": { "cost": 12 } }\n}' }],
       selectedInput: 'input.json',
-      modules: [{ type: 'file', name: 'main.jslt', content: '{\n  "price": .data.fruit.cost\n}' }],
-      selectedTemplate: 'main.jslt'
+      modules: [{ type: 'file', name: 'default.jslt', content: '{\n  "price": .data.fruit.cost\n}' }],
+      selectedTemplate: 'default.jslt'
     }];
   };
 
@@ -256,8 +256,8 @@ export default function App() {
       name,
       inputs: [{ name: 'input.json', content: '{}' }],
       selectedInput: 'input.json',
-      modules: [],
-      selectedTemplate: ''
+      modules: [{ type: 'file', name: 'default.jslt', content: '' }],
+      selectedTemplate: 'default.jslt'
     }]);
     setActiveId(id);
   };
