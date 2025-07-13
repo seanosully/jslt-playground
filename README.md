@@ -65,6 +65,7 @@ npm start
 ```
 
 The React development server will launch on <http://localhost:3000>. When you open this URL in your browser you should see the JSLT playground.
+For full functionality we recommend running the playground in Google Chrome because some features depend on browser APIs that may not be available in other browsers.
 
 Any changes made in `client/src` will hot reload automatically. The frontend sends transformations to the backend at `/api/transform` which executes your JSLT against the provided JSON input.
 
