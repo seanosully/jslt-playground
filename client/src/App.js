@@ -10,41 +10,85 @@ import './App.css';
 import ModulesPage from './ModulesPage';
 
 function formatJslt(text) {
+  let i = 0;
   let indent = 0;
-  let inString = false;
-  let escape = false;
   let out = '';
+  const ws = /\s/;
   const newline = () => { out += '\n' + '  '.repeat(indent); };
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (c === '"' && !escape) {
-      inString = !inString;
-      out += c;
-      continue;
+
+  const skipWs = () => { while (i < text.length && ws.test(text[i])) i++; };
+
+  function parseValue() {
+    const start = i;
+    let inStr = false;
+    let esc = false;
+    let depth = 0;
+    while (i < text.length) {
+      const ch = text[i];
+      if (inStr) {
+        if (ch === '"' && !esc) inStr = false;
+        esc = ch === '\\' && !esc;
+        i++;
+        continue;
+      }
+      if (ch === '"') { inStr = true; i++; continue; }
+      if (ch === '{' || ch === '[' || ch === '(') { depth++; i++; continue; }
+      if (ch === '}' || ch === ']' || ch === ')') {
+        if (depth === 0) break;
+        depth--; i++; continue;
+      }
+      if ((ch === ',' || ch === '}' || ch === ']') && depth === 0) break;
+      i++;
     }
-    if (inString) {
-      out += c;
-      escape = c === '\\' && !escape;
-      continue;
-    }
-    if (c === '{' || c === '[') {
-      out += c;
+    return text.slice(start, i).trim();
+  }
+
+  skipWs();
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '{' || ch === '[') {
+      out += ch;
+      i++;
       indent++;
-      newline();
-    } else if (c === '}' || c === ']') {
+      skipWs();
+      if (text[i] !== '}' && text[i] !== ']') { newline(); skipWs(); }
+      continue;
+    }
+    if (ch === '}' || ch === ']') {
       indent--;
       newline();
-      out += c;
-    } else if (c === ',') {
-      out += c;
-      newline();
-    } else if (c === ':') {
-      out += ': ';
-    } else if (!/\s/.test(c)) {
-      out += c;
+      out += ch;
+      i++;
+      skipWs();
+      if (text[i] === ',') { out += ','; i++; skipWs(); newline(); skipWs(); }
+      continue;
+    }
+    if (ch === '"') {
+      let start = i;
+      i++;
+      while (i < text.length) {
+        if (text[i] === '"' && text[i - 1] !== '\\') { i++; break; }
+        i++;
+      }
+      const key = text.slice(start, i);
+      skipWs();
+      if (text[i] === ':') {
+        out += key + ': ';
+        i++; skipWs();
+        out += parseValue();
+        skipWs();
+        if (text[i] === ',') { out += ','; i++; skipWs(); newline(); skipWs(); }
+        else if (text[i] !== '}' && text[i] !== ']') { newline(); }
+      } else {
+        out += key;
+      }
+    } else {
+      out += parseValue();
+      skipWs();
+      if (text[i] === ',') { out += ','; i++; skipWs(); newline(); skipWs(); }
     }
   }
-  return out;
+  return out.trim();
 }
 
 export default function App() {
