@@ -6,6 +6,7 @@ import { javascript } from '@codemirror/lang-javascript';
 import { keymap } from '@codemirror/view';
 import { indentWithTab } from '@codemirror/commands';
 import { parseTree, findNodeAtOffset } from 'jsonc-parser';
+import { createZip } from './zip';
 import './App.css';
 import ModulesPage from './ModulesPage';
 
@@ -128,12 +129,18 @@ export default function App() {
   const exportProject = () => {
     const proj = projects.find(p => p.id === activeId);
     if (!proj) return;
-    const data = JSON.stringify(proj, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
+    const files = [{ name: `${proj.name}/`, data: '' }];
+    proj.modules.forEach(m => {
+      files.push({
+        name: `${proj.name}/${m.name}`,
+        data: (m.type || 'file') === 'file' ? m.content : ''
+      });
+    });
+    const blob = createZip(files);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${proj.name || 'project'}.json`;
+    a.download = `${proj.name || 'project'}.zip`;
     a.click();
     URL.revokeObjectURL(url);
   };
