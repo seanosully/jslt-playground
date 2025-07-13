@@ -365,12 +365,10 @@ export default function App() {
     }
     let path = segs.join('');
     if (!path.startsWith('.')) path = '.' + path;
-    try {
-      navigator.clipboard.writeText(path);
-    } catch (err) {
+    navigator.clipboard.writeText(path).catch(err => {
       // clipboard API may fail without permissions
       console.warn('Failed to copy', err);
-    }
+    });
     setTooltip({ path, x: e.clientX, y: e.clientY, copied: true });
     clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
@@ -379,11 +377,9 @@ export default function App() {
   };
   const onCopyTooltip = () => {
     if (!tooltip) return;
-    try {
-      navigator.clipboard.writeText(tooltip.path);
-    } catch (err) {
+    navigator.clipboard.writeText(tooltip.path).catch(err => {
       console.warn('Failed to copy', err);
-    }
+    });
   };
 
   if (view === 'modules') {
