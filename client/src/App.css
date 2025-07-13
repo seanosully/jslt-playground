@@ -18,6 +18,12 @@
   font-size: 0.9rem;
 }
 
+.topBarRight {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .container {
   flex: 1;
   display: flex;
@@ -89,6 +95,10 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.labelButtons select {
+  padding: 2px 4px;
 }
 
 .moduleControls {

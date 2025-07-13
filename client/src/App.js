@@ -92,26 +92,32 @@ function formatJslt(text) {
 }
 
 export default function App() {
-  // Load initial state from localStorage or use defaults
-  const [inputJson, setInputJson] = useState(() => {
-    return localStorage.getItem('inputJson') ||
-      '{\n  "data": { "fruit": { "cost": 12 } }\n}';
-  });
-  const [jslt, setJslt] = useState(() => {
-    return localStorage.getItem('jslt') ||
-      '{\n  "price": .data.fruit.cost\n}';
-  });
-  const [modules, setModules] = useState(() => {
-    const saved = localStorage.getItem('jsltModules');
+  // Projects handling -----------------------------------------------------
+  const loadProjects = () => {
+    const saved = localStorage.getItem('projects');
     if (saved) {
-      try {
-        return JSON.parse(saved).map(m => m.type ? m : { ...m, type: 'file' });
-      } catch {
-        return [];
-      }
+      try { return JSON.parse(saved); } catch { /* ignore */ }
     }
-    return [];
+    const id = 'proj-' + Date.now();
+    return [{
+      id,
+      name: 'Default',
+      inputJson: '{\n  "data": { "fruit": { "cost": 12 } }\n}',
+      modules: [{ type: 'file', name: 'main.jslt', content: '{\n  "price": .data.fruit.cost\n}' }],
+      selectedTemplate: 'main.jslt'
+    }];
+  };
+
+  const [projects, setProjects] = useState(loadProjects);
+  const [activeId, setActiveId] = useState(() => {
+    return localStorage.getItem('activeProjectId') || projects[0].id;
   });
+
+  const [inputJson, setInputJson] = useState('');
+  const [modules, setModules] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [jslt, setJslt] = useState('');
+
   const [output, setOutput] = useState('');
   const [error, setError] = useState(null);
   const [inputCollapsed, setInputCollapsed] = useState(false);
@@ -121,10 +127,42 @@ export default function App() {
   const [view, setView] = useState('main');
   const lastGoodRef = useRef('');
 
-  // Persist inputJson, jslt, and modules
-  useEffect(() => { localStorage.setItem('inputJson', inputJson); }, [inputJson]);
-  useEffect(() => { localStorage.setItem('jslt', jslt); }, [jslt]);
-  useEffect(() => { localStorage.setItem('jsltModules', JSON.stringify(modules)); }, [modules]);
+  // Load project data when active project changes
+  useEffect(() => {
+    const proj = projects.find(p => p.id === activeId);
+    if (!proj) return;
+    setInputJson(proj.inputJson || '');
+    setModules(proj.modules || []);
+    const main = proj.selectedTemplate || (proj.modules.find(m => (m.type || 'file') !== 'folder') || {}).name || '';
+    setSelectedTemplate(main);
+    const mod = proj.modules.find(m => m.name === main && (m.type || 'file') !== 'folder');
+    setJslt(mod ? mod.content : '');
+  }, [activeId, projects]);
+
+  // keep jslt editor in sync with selected template
+  useEffect(() => {
+    const mod = modules.find(m => m.name === selectedTemplate && (m.type || 'file') !== 'folder');
+    if (mod && mod.content !== jslt) setJslt(mod.content);
+    if (!mod) {
+      const first = modules.find(m => (m.type || 'file') !== 'folder');
+      setSelectedTemplate(first ? first.name : '');
+    }
+  }, [modules, selectedTemplate]);
+
+  // Update active project when state changes
+  useEffect(() => {
+    setProjects(prev => prev.map(p => {
+      if (p.id !== activeId) return p;
+      if (p.inputJson === inputJson && p.selectedTemplate === selectedTemplate && JSON.stringify(p.modules) === JSON.stringify(modules)) {
+        return p;
+      }
+      return { ...p, inputJson, modules, selectedTemplate };
+    }));
+  }, [inputJson, modules, selectedTemplate, activeId]);
+
+  // Persist projects and active project id
+  useEffect(() => { localStorage.setItem('projects', JSON.stringify(projects)); }, [projects]);
+  useEffect(() => { localStorage.setItem('activeProjectId', activeId); }, [activeId]);
 
   // Initialize Input JSON editor
   const { view: inputView, setContainer: setInputContainer } = useCodeMirror({
@@ -236,7 +274,47 @@ export default function App() {
     <div className="root">
       <div className="topBar">
         <div className="copyHint">Right-click on json field to copy JSLT path</div>
-        <button className="btn" onClick={() => setView('modules')}>Modules</button>
+        <div className="topBarRight">
+          <select value={activeId} onChange={e => setActiveId(e.target.value)}>
+            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <button className="btn" onClick={() => {
+            const name = prompt('Project name');
+            if (!name) return;
+            const id = 'proj-' + Date.now();
+            setProjects([...projects, { id, name, inputJson: '{}', modules: [], selectedTemplate: '' }]);
+            setActiveId(id);
+          }}>New From Scratch</button>
+          <label className="btn fileUpload">
+            New From Folder
+            <input type="file" webkitdirectory="" directory="" multiple className="fileInput" onChange={e => {
+              const files = Array.from(e.target.files).filter(f => f.name.endsWith('.jslt'));
+              if (files.length === 0) { e.target.value=''; return; }
+              const name = prompt('Project name');
+              if (!name) { e.target.value=''; return; }
+              const id = 'proj-' + Date.now();
+              const mods = [];
+              let loaded = 0;
+              const finalize = () => {
+                mods.sort((a,b)=>a.name.localeCompare(b.name));
+                const main = mods[0] ? mods[0].name : '';
+                setProjects(prev => [...prev, { id, name, inputJson: '{}', modules: mods, selectedTemplate: main }]);
+                setActiveId(id);
+              };
+              if (files.length === 0) finalize();
+              files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  mods.push({ type: 'file', name: file.webkitRelativePath || file.name, content: reader.result });
+                  loaded++; if (loaded === files.length) finalize();
+                };
+                reader.readAsText(file);
+              });
+              e.target.value = '';
+            }} />
+          </label>
+          <button className="btn" onClick={() => setView('modules')}>Modules</button>
+        </div>
       </div>
       <div className="container">
         {!inputCollapsed && (!fullScreen || fullScreen === 'input') && (
@@ -275,6 +353,11 @@ export default function App() {
             <div className="label">
               JSLT Template
               <div className="labelButtons">
+                <select value={selectedTemplate} onChange={e => setSelectedTemplate(e.target.value)}>
+                  {modules.filter(m => (m.type || 'file') !== 'folder').map(m => (
+                    <option key={m.name} value={m.name}>{m.name}</option>
+                  ))}
+                </select>
                 <button className="btn" onClick={beautifyJslt}>Beautify</button>
                 <button className="btn" onClick={() => setFullScreen(fullScreen === 'template' ? null : 'template')}>{fullScreen === 'template' ? 'Exit' : 'Expand'}</button>
                 <button
@@ -292,7 +375,14 @@ export default function App() {
               <CodeMirror
                 value={jslt}
                 extensions={[javascript(), keymap.of([indentWithTab])]}
-                onChange={setJslt}
+                onChange={value => {
+                  setJslt(value);
+                  setModules(prev => prev.map(m =>
+                    m.name === selectedTemplate && (m.type || 'file') !== 'folder'
+                      ? { ...m, content: value }
+                      : m
+                  ));
+                }}
               />
             </div>
           </div>
