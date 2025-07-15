@@ -1,10 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useCodeMirror } from '@uiw/react-codemirror';
-import CodeMirror from '@uiw/react-codemirror';
-import { json } from '@codemirror/lang-json';
-import { javascript } from '@codemirror/lang-javascript';
-import { keymap } from '@codemirror/view';
-import { indentWithTab } from '@codemirror/commands';
+import Editor from '@monaco-editor/react';
 import { parseTree, findNodeAtOffset } from 'jsonc-parser';
 import { createZip } from './zip';
 import './App.css';
@@ -119,16 +114,14 @@ export default function App() {
   useEffect(() => { localStorage.setItem('activeProjectId', activeId); }, [activeId]);
 
   // Initialize Input JSON editor
-  const { view: inputView, setContainer: setInputContainer } = useCodeMirror({
-    value: inputJson,
-    extensions: [json(), keymap.of([indentWithTab])],
-    onChange: value => {
-      setInputJson(value);
-      setInputs(prev => prev.map(i =>
-        i.name === selectedInput ? { ...i, content: value } : i
-      ));
-    },
-  });
+  const inputEditorRef = useRef(null);
+  const onInputChange = value => {
+    const val = value ?? '';
+    setInputJson(val);
+    setInputs(prev => prev.map(i =>
+      i.name === selectedInput ? { ...i, content: val } : i
+    ));
+  };
 
   // keep input editor in sync with selected input
   useEffect(() => {
@@ -313,9 +306,14 @@ export default function App() {
   // JSON hover tooltip logic
   const [tooltip, setTooltip] = useState(null);
   const timeoutRef = useRef(null);
+  const getOffsetAtCoords = (x, y) => {
+    if (!inputEditorRef.current) return null;
+    const target = inputEditorRef.current.getTargetAtClientPoint(x, y);
+    if (!target || !target.range) return null;
+    return inputEditorRef.current.getModel().getOffsetAt(target.range.getStartPosition());
+  };
   const onMouseMove = e => {
-    if (!inputView) return setTooltip(null);
-    const pos = inputView.posAtCoords({ x: e.clientX, y: e.clientY });
+    const pos = getOffsetAtCoords(e.clientX, e.clientY);
     if (pos == null) return setTooltip(null);
     const tree = parseTree(inputJson);
     if (!tree) return setTooltip(null);
@@ -342,8 +340,7 @@ export default function App() {
   const onMouseLeave = () => setTooltip(null);
   const onContextMenu = e => {
     e.preventDefault();
-    if (!inputView) return;
-    const pos = inputView.posAtCoords({ x: e.clientX, y: e.clientY });
+    const pos = getOffsetAtCoords(e.clientX, e.clientY);
     if (pos == null) return;
     const tree = parseTree(inputJson);
     if (!tree) return;
@@ -445,11 +442,18 @@ export default function App() {
             </div>
             <div
               className="editor"
-              ref={setInputContainer}
               onMouseMove={onMouseMove}
               onMouseLeave={onMouseLeave}
               onContextMenu={onContextMenu}
-            />
+            >
+              <Editor
+                height="100%"
+                language="json"
+                value={inputJson}
+                onMount={(editor) => { inputEditorRef.current = editor; }}
+                onChange={onInputChange}
+              />
+            </div>
           </div>
         )}
         {inputCollapsed && !fullScreen && (
@@ -479,14 +483,16 @@ export default function App() {
               </div>
             </div>
             <div className="editor">
-              <CodeMirror
+              <Editor
+                height="100%"
+                language="javascript"
                 value={jslt}
-                extensions={[javascript(), keymap.of([indentWithTab])]}
                 onChange={value => {
-                  setJslt(value);
+                  const val = value ?? '';
+                  setJslt(val);
                   setModules(prev => prev.map(m =>
                     m.name === selectedTemplate && (m.type || 'file') !== 'folder'
-                      ? { ...m, content: value }
+                      ? { ...m, content: val }
                       : m
                   ));
                 }}
