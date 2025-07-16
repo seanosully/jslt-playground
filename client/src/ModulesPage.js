@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import Editor from '@monaco-editor/react';
+import { disableMonacoDiagnostics } from './monacoUtils';
 import './App.css';
 
 export default function ModulesPage({ modules, setModules, onBack }) {
@@ -231,6 +232,7 @@ export default function ModulesPage({ modules, setModules, onBack }) {
               height="100%"
               language="javascript"
               value={selectedModule.content}
+              onMount={(_, monaco) => disableMonacoDiagnostics(monaco)}
               onChange={value => updateContent(selectedModule.name, value ?? '')}
             />
           ) : (

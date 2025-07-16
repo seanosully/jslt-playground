@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
+import { disableMonacoDiagnostics } from './monacoUtils';
 import { parseTree, findNodeAtOffset } from 'jsonc-parser';
 import { createZip } from './zip';
 import './App.css';
@@ -450,7 +451,10 @@ export default function App() {
                 height="100%"
                 language="json"
                 value={inputJson}
-                onMount={(editor) => { inputEditorRef.current = editor; }}
+                onMount={(editor, monaco) => {
+                  inputEditorRef.current = editor;
+                  disableMonacoDiagnostics(monaco);
+                }}
                 onChange={onInputChange}
               />
             </div>
@@ -487,6 +491,7 @@ export default function App() {
                 height="100%"
                 language="javascript"
                 value={jslt}
+                onMount={(_, monaco) => disableMonacoDiagnostics(monaco)}
                 onChange={value => {
                   const val = value ?? '';
                   setJslt(val);
