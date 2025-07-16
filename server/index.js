@@ -15,13 +15,21 @@ const app = express();
 app.use(express.json());
 
 app.post('/api/transform', async (req, res) => {
-  const { inputJson, jslt, modules = [] } = req.body;
+  const { inputJson, headersJson = '{}', jslt, modules = [] } = req.body;
+
+  let headersObj = {};
+  try {
+    headersObj = JSON.parse(headersJson);
+  } catch {
+    return res.status(400).json({ error: 'Invalid headers JSON' });
+  }
 
   // 1) Create a temp workspace
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jslt-'));
 
   // 2) Write main template and input
-  fs.writeFileSync(path.join(tmpDir, 'script.jslt'), jslt);
+  const prefix = `let headers = ${JSON.stringify(headersObj, null, 2)}\n`;
+  fs.writeFileSync(path.join(tmpDir, 'script.jslt'), prefix + jslt);
   fs.writeFileSync(path.join(tmpDir, 'input.json'), inputJson);
 
   // 3) Write each user module under tmpDir

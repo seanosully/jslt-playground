@@ -1,10 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useCodeMirror } from '@uiw/react-codemirror';
-import CodeMirror from '@uiw/react-codemirror';
-import { json } from '@codemirror/lang-json';
-import { javascript } from '@codemirror/lang-javascript';
-import { keymap } from '@codemirror/view';
-import { indentWithTab } from '@codemirror/commands';
+import Editor from '@monaco-editor/react';
 import { parseTree, findNodeAtOffset } from 'jsonc-parser';
 import { createZip } from './zip';
 import './App.css';
@@ -24,6 +19,9 @@ export default function App() {
             p.selectedInput = 'input.json';
             delete p.inputJson;
           }
+          if (p.headers === undefined) {
+            p.headers = '{}';
+          }
         });
         return parsed;
       } catch {
@@ -36,6 +34,7 @@ export default function App() {
       name: 'Default',
       inputs: [{ name: 'input.json', content: '{\n  "data": { "fruit": { "cost": 12 } }\n}' }],
       selectedInput: 'input.json',
+      headers: '{}',
       modules: [{ type: 'file', name: 'default.jslt', content: '{\n  "price": .data.fruit.cost\n}' }],
       selectedTemplate: 'default.jslt'
     }];
@@ -49,6 +48,7 @@ export default function App() {
   const [inputs, setInputs] = useState([]);
   const [selectedInput, setSelectedInput] = useState('');
   const [inputJson, setInputJson] = useState('');
+  const [headersJson, setHeadersJson] = useState('{}');
   const [modules, setModules] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [jslt, setJslt] = useState('');
@@ -56,6 +56,7 @@ export default function App() {
   const [output, setOutput] = useState('');
   const [error, setError] = useState(null);
   const [inputCollapsed, setInputCollapsed] = useState(false);
+  const [headersCollapsed, setHeadersCollapsed] = useState(false);
   const [templateCollapsed, setTemplateCollapsed] = useState(false);
   const [outputCollapsed, setOutputCollapsed] = useState(false);
   const [fullScreen, setFullScreen] = useState(null);
@@ -77,6 +78,7 @@ export default function App() {
     setSelectedInput(inputName);
     const inp = (proj.inputs || []).find(i => i.name === inputName);
     setInputJson(inp ? inp.content : '');
+    setHeadersJson(proj.headers || '{}');
     setModules(proj.modules || []);
     const main =
       proj.selectedTemplate ||
@@ -106,29 +108,28 @@ export default function App() {
         JSON.stringify(p.inputs) === JSON.stringify(inputs) &&
         p.selectedInput === selectedInput &&
         p.selectedTemplate === selectedTemplate &&
-        JSON.stringify(p.modules) === JSON.stringify(modules)
+        JSON.stringify(p.modules) === JSON.stringify(modules) &&
+        p.headers === headersJson
       ) {
         return p;
       }
-      return { ...p, inputs, selectedInput, modules, selectedTemplate };
+      return { ...p, inputs, selectedInput, modules, selectedTemplate, headers: headersJson };
     }));
-  }, [inputs, selectedInput, modules, selectedTemplate, activeId]);
+  }, [inputs, selectedInput, modules, selectedTemplate, headersJson, activeId]);
 
   // Persist projects and active project id
   useEffect(() => { localStorage.setItem('projects', JSON.stringify(projects)); }, [projects]);
   useEffect(() => { localStorage.setItem('activeProjectId', activeId); }, [activeId]);
 
   // Initialize Input JSON editor
-  const { view: inputView, setContainer: setInputContainer } = useCodeMirror({
-    value: inputJson,
-    extensions: [json(), keymap.of([indentWithTab])],
-    onChange: value => {
-      setInputJson(value);
-      setInputs(prev => prev.map(i =>
-        i.name === selectedInput ? { ...i, content: value } : i
-      ));
-    },
-  });
+  const inputEditorRef = useRef(null);
+  const onInputChange = value => {
+    const val = value ?? '';
+    setInputJson(val);
+    setInputs(prev => prev.map(i =>
+      i.name === selectedInput ? { ...i, content: val } : i
+    ));
+  };
 
   // keep input editor in sync with selected input
   useEffect(() => {
@@ -141,7 +142,12 @@ export default function App() {
   useEffect(() => {
     const id = setTimeout(async () => {
       try {
-        const payload = { inputJson, jslt, modules: modules.filter(m => (m.type || 'file') !== 'folder') };
+        const payload = {
+          inputJson,
+          headersJson,
+          jslt,
+          modules: modules.filter(m => (m.type || 'file') !== 'folder')
+        };
         const res = await fetch('/api/transform', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -164,7 +170,7 @@ export default function App() {
       }
     }, 500);
     return () => clearTimeout(id);
-  }, [inputJson, jslt, modules]);
+  }, [inputJson, headersJson, jslt, modules]);
 
   // Beautify functions
   const beautifyInput = () => {
@@ -174,6 +180,13 @@ export default function App() {
       setInputs(prev => prev.map(i =>
         i.name === selectedInput ? { ...i, content: pretty } : i
       ));
+    } catch {}
+  };
+
+  const beautifyHeaders = () => {
+    try {
+      const pretty = JSON.stringify(JSON.parse(headersJson), null, 2);
+      setHeadersJson(pretty);
     } catch {}
   };
 
@@ -210,6 +223,7 @@ export default function App() {
     (proj.inputs || []).forEach(i => {
       files.push({ name: `${proj.name}/inputs/${i.name}`, data: i.content });
     });
+    files.push({ name: `${proj.name}/headers.json`, data: proj.headers || '{}' });
     proj.modules.forEach(m => {
       files.push({
         name: `${proj.name}/${m.name}`,
@@ -237,6 +251,7 @@ export default function App() {
           name: 'Default',
           inputs: [{ name: 'input.json', content: '{}' }],
           selectedInput: 'input.json',
+          headers: '{}',
           modules: [],
           selectedTemplate: ''
         }];
@@ -256,6 +271,7 @@ export default function App() {
       name,
       inputs: [{ name: 'input.json', content: '{}' }],
       selectedInput: 'input.json',
+      headers: '{}',
       modules: [{ type: 'file', name: 'default.jslt', content: '' }],
       selectedTemplate: 'default.jslt'
     }]);
@@ -278,6 +294,7 @@ export default function App() {
         name,
         inputs: [{ name: 'input.json', content: '{}' }],
         selectedInput: 'input.json',
+        headers: '{}',
         modules: mods,
         selectedTemplate: main
       }]);
@@ -313,9 +330,15 @@ export default function App() {
   // JSON hover tooltip logic
   const [tooltip, setTooltip] = useState(null);
   const timeoutRef = useRef(null);
+  const getOffsetAtCoords = (x, y) => {
+    const editor = inputEditorRef.current;
+    if (!editor) return null;
+    const target = editor.getTargetAtClientPoint(x, y);
+    const pos = target && (target.position || (target.range && target.range.getStartPosition && target.range.getStartPosition()));
+    return pos ? editor.getModel().getOffsetAt(pos) : null;
+  };
   const onMouseMove = e => {
-    if (!inputView) return setTooltip(null);
-    const pos = inputView.posAtCoords({ x: e.clientX, y: e.clientY });
+    const pos = getOffsetAtCoords(e.clientX, e.clientY);
     if (pos == null) return setTooltip(null);
     const tree = parseTree(inputJson);
     if (!tree) return setTooltip(null);
@@ -342,8 +365,7 @@ export default function App() {
   const onMouseLeave = () => setTooltip(null);
   const onContextMenu = e => {
     e.preventDefault();
-    if (!inputView) return;
-    const pos = inputView.posAtCoords({ x: e.clientX, y: e.clientY });
+    const pos = getOffsetAtCoords(e.clientX, e.clientY);
     if (pos == null) return;
     const tree = parseTree(inputJson);
     if (!tree) return;
@@ -445,15 +467,56 @@ export default function App() {
             </div>
             <div
               className="editor"
-              ref={setInputContainer}
               onMouseMove={onMouseMove}
               onMouseLeave={onMouseLeave}
-              onContextMenu={onContextMenu}
-            />
+            >
+              <Editor
+                height="100%"
+                language="json"
+                options={{ contextmenu: false }}
+                value={inputJson}
+                onContextMenu={onContextMenu}
+                onMount={(editor) => { inputEditorRef.current = editor; }}
+                onChange={onInputChange}
+              />
+            </div>
           </div>
         )}
         {inputCollapsed && !fullScreen && (
           <div className="collapseHandle" onClick={() => setInputCollapsed(false)}>▶ Input JSON</div>
+        )}
+
+        {!headersCollapsed && (!fullScreen || fullScreen === 'headers') && (
+          <div className="paneContainer">
+            <div className="label">
+              Headers
+              <div className="labelButtons">
+                <button className="btn" onClick={beautifyHeaders}>Beautify</button>
+                <button className="btn" onClick={() => setFullScreen(fullScreen === 'headers' ? null : 'headers')}>{fullScreen === 'headers' ? 'Exit' : 'Expand'}</button>
+                <button
+                  className="collapseBtn"
+                  onClick={() => {
+                    setFullScreen(null);
+                    setHeadersCollapsed(true);
+                  }}
+                >
+                  ⏴
+                </button>
+              </div>
+            </div>
+            <div className="editor">
+              <Editor
+                height="100%"
+                language="json"
+                options={{ contextmenu: false }}
+                value={headersJson}
+                onChange={value => setHeadersJson(value ?? '')}
+              />
+            </div>
+          </div>
+        )}
+        {headersCollapsed && !fullScreen && (
+          <div className="collapseHandle" onClick={() => setHeadersCollapsed(false)}>▶ Headers</div>
         )}
 
         {!templateCollapsed && (!fullScreen || fullScreen === 'template') && (
@@ -479,14 +542,17 @@ export default function App() {
               </div>
             </div>
             <div className="editor">
-              <CodeMirror
+              <Editor
+                height="100%"
+                language="javascript"
+                options={{ contextmenu: false }}
                 value={jslt}
-                extensions={[javascript(), keymap.of([indentWithTab])]}
                 onChange={value => {
-                  setJslt(value);
+                  const val = value ?? '';
+                  setJslt(val);
                   setModules(prev => prev.map(m =>
                     m.name === selectedTemplate && (m.type || 'file') !== 'folder'
-                      ? { ...m, content: value }
+                      ? { ...m, content: val }
                       : m
                   ));
                 }}
