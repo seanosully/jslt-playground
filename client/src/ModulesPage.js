@@ -1,8 +1,5 @@
 import React, { useState, useRef } from 'react';
-import CodeMirror from '@uiw/react-codemirror';
-import { javascript } from '@codemirror/lang-javascript';
-import { keymap } from '@codemirror/view';
-import { indentWithTab } from '@codemirror/commands';
+import Editor from '@monaco-editor/react';
 import './App.css';
 
 export default function ModulesPage({ modules, setModules, onBack }) {
@@ -230,10 +227,12 @@ export default function ModulesPage({ modules, setModules, onBack }) {
         </div>
         <div className="editorPane">
           {selectedModule ? (
-            <CodeMirror
+            <Editor
+              height="100%"
+              language="javascript"
+              options={{ contextmenu: false }}
               value={selectedModule.content}
-              extensions={[javascript(), keymap.of([indentWithTab])]}
-              onChange={value => updateContent(selectedModule.name, value)}
+              onChange={value => updateContent(selectedModule.name, value ?? '')}
             />
           ) : (
             <div className="noSelection">Select a file</div>
